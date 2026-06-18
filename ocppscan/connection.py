@@ -251,6 +251,12 @@ class ScanSession:
         self._owned.append(conn)
         return conn
 
+    async def close_shared(self) -> None:
+        """Close the shared connection, freeing the charger ID slot for dedicated checks."""
+        if self._shared:
+            await self._shared.close()
+            self._shared = None
+
     async def close(self) -> None:
         if self._shared:
             await self._shared.close()

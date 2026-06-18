@@ -160,19 +160,26 @@ async def _run_scan(
     )
     session = ScanSession(config)
 
-    # Establish shared connection (best-effort; individual checks handle failures)
-    needs_shared = any(
-        c.connection_mode.value == "SHARED" for c in selected_classes
-    )
-    if needs_shared:
+    # Run SHARED-mode checks first, then close the shared connection before
+    # DEDICATED checks so that CSMS implementations that enforce one connection
+    # per charger ID can accept the dedicated check connections.
+    shared_checks = [c for c in selected_classes if c.connection_mode.value == "SHARED"]
+    dedicated_checks = [c for c in selected_classes if c.connection_mode.value != "SHARED"]
+
+    if shared_checks:
         setup_err = await session.setup()
         if setup_err:
             console.print(f"[yellow]⚠  Shared connection setup failed: {setup_err}[/yellow]")
             console.print("[dim]   Checks that require a shared connection will report ERROR.[/dim]\n")
 
     results: list[CheckResult] = []
+    shared_closed = False
     try:
-        for check_class in selected_classes:
+        for check_class in shared_checks + dedicated_checks:
+            if not shared_closed and check_class not in shared_checks:
+                await session.close_shared()
+                shared_closed = True
+
             check = check_class(session)
             try:
                 result = await check.run()

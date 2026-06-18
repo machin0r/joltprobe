@@ -68,7 +68,7 @@ class _BaseFieldCheck(BaseCheck):
 
     async def _clean_probe(self, conn: OCPPConnection) -> Any:
         """Send a clean probe that should return a predictable response."""
-        return await self._send_payload(conn, "OCPPSCAN_PROBE_CLEAN_XYZ")
+        return await self._send_payload(conn, "PROBE_CLEAN")
 
     async def run(self) -> CheckResult:
         try:
