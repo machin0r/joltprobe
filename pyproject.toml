@@ -23,4 +23,4 @@ where = ["."]
 include = ["ocppscan*"]
 
 [tool.setuptools.package-data]
-ocppscan = ["payloads/**/*"]
+ocppscan = ["payloads/**/*", "injection/payloads/**/*"]

@@ -1,0 +1,19 @@
+- id: log-newline-lf
+  method: log
+  payload: "CP001\n[CRITICAL] Forged log entry"
+  signal: error_or_connection_close
+
+- id: log-newline-crlf
+  method: log
+  payload: "CP001\r\n[CRITICAL] Forged log entry"
+  signal: error_or_connection_close
+
+- id: log-null-byte
+  method: log
+  payload: "CP001\x00injected"
+  signal: error_or_connection_close
+
+- id: crlf-header-injection
+  method: crlf
+  payload: "CP001\r\nSet-Cookie: admin=true"
+  signal: response_header

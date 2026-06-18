@@ -1,0 +1,20 @@
+- id: nosql-gt-operator
+  method: nosql
+  payload: '{"$gt": ""}'
+  signal: behavioural
+
+- id: nosql-ne-operator
+  method: nosql
+  payload: '{"$ne": null}'
+  signal: behavioural
+
+- id: nosql-where-sleep
+  method: nosql
+  payload: '{"$where": "sleep(3000)"}'
+  signal: timing
+  delay_seconds: 3
+
+- id: nosql-regex-dos
+  method: nosql
+  payload: '{"$regex": ".*"}'
+  signal: behavioural

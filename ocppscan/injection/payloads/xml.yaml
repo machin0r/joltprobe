@@ -1,0 +1,15 @@
+# Applicable only when testing SOAP endpoints
+- id: xml-tag-injection
+  method: xml
+  payload: "</chargeBoxId><injected>test</injected><chargeBoxId>"
+  signal: error
+
+- id: xml-entity-billion-laughs
+  method: xml
+  payload: "&xxe;"
+  signal: error
+
+- id: xml-cdata-escape
+  method: xml
+  payload: "]]><injected/><![CDATA["
+  signal: error

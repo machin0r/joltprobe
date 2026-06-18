@@ -1,0 +1,35 @@
+- id: template-jinja2
+  method: template
+  engine: jinja2
+  payload: "{{7*7}}"
+  expected_reflection: "49"
+
+- id: template-jinja2-filter
+  method: template
+  engine: jinja2
+  payload: "{{7*'7'}}"
+  expected_reflection: "7777777"
+
+- id: template-freemarker
+  method: template
+  engine: freemarker
+  payload: "${7*7}"
+  expected_reflection: "49"
+
+- id: template-thymeleaf
+  method: template
+  engine: thymeleaf
+  payload: "__${7*7}__::.x"
+  expected_reflection: "49"
+
+- id: template-handlebars
+  method: template
+  engine: handlebars
+  payload: "{{#with '7' as |x|}}{{x}}{{/with}}"
+  signal: behavioural
+
+- id: template-erb
+  method: template
+  engine: erb
+  payload: "<%= 7*7 %>"
+  expected_reflection: "49"

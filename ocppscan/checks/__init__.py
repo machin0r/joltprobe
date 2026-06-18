@@ -35,6 +35,25 @@ from ocppscan.checks.message import (
 from ocppscan.checks.billing import BillingNegativeMeterValue, BillingInflatedMeterValue
 from ocppscan.checks.websocket import WebsocketNoSubprotocol, WebsocketWrongSubprotocol
 from ocppscan.checks.dos import DosConnectionFlood, DosMessageRate, DosLargePayload
+from ocppscan.injection.checks import (
+    InjectionChargeBoxId,
+    InjectionIdTag,
+    InjectionVendorId,
+    InjectionMessageId,
+    InjectionReason,
+    InjectionMeterValues,
+    InjectionSoap,
+)
+
+_ALL_INJECTION = [
+    InjectionChargeBoxId,
+    InjectionIdTag,
+    InjectionVendorId,
+    InjectionMessageId,
+    InjectionReason,
+    InjectionMeterValues,
+    InjectionSoap,
+]
 
 ALL_CHECKS = [
     TLSNoTLS,
@@ -74,6 +93,7 @@ ALL_CHECKS = [
     DosConnectionFlood,
     DosMessageRate,
     DosLargePayload,
+    *_ALL_INJECTION,
 ]
 
 CATEGORIES: dict[str, list] = {
@@ -85,6 +105,15 @@ CATEGORIES: dict[str, list] = {
     "billing": [BillingNegativeMeterValue, BillingInflatedMeterValue],
     "websocket": [WebsocketNoSubprotocol, WebsocketWrongSubprotocol],
     "dos": [DosConnectionFlood, DosMessageRate, DosLargePayload],
+    "injection": [
+        InjectionChargeBoxId,
+        InjectionIdTag,
+        InjectionVendorId,
+        InjectionMessageId,
+        InjectionReason,
+        InjectionMeterValues,
+        InjectionSoap,
+    ],
 }
 
 CHECK_BY_ID: dict[str, type] = {cls.id: cls for cls in ALL_CHECKS}
