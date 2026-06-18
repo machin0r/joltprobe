@@ -14,6 +14,7 @@ from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severit
 from ocppscan.connection import OCPPConnection
 from ocppscan.injection.baseline import establish_baseline, establish_connection_baseline
 from ocppscan.injection.detector import (
+    check_error_leak,
     check_error_strings,
     check_reflection,
     is_timing_anomaly,
@@ -184,18 +185,36 @@ class _BaseFieldCheck(BaseCheck):
             elapsed = (time.monotonic() - start) * 1000.0
             resp = {"_exc": str(exc)[:300]}
 
-        db_error = check_error_strings(resp) if resp is not None else None
-        if db_error:
-            return {
-                "status": "FAIL",
-                "payload_id": entry["id"],
-                "method": method,
-                "signal": "error",
-                "payload": payload_str,
-                "db_error_type": db_error,
-                "response": str(resp)[:300],
-                "elapsed_ms": round(elapsed, 1),
-            }
+        if resp is not None:
+            db_error = check_error_strings(resp)
+            if db_error:
+                return {
+                    "status": "FAIL",
+                    "payload_id": entry["id"],
+                    "method": method,
+                    "signal": "db_error",
+                    "payload": payload_str,
+                    "db_error_type": db_error,
+                    "response": str(resp)[:300],
+                    "elapsed_ms": round(elapsed, 1),
+                }
+            leak = check_error_leak(resp)
+            if leak:
+                return {
+                    "status": "FAIL",
+                    "payload_id": entry["id"],
+                    "method": method,
+                    "signal": "db_error_leaked",
+                    "payload": payload_str,
+                    "db_error_type": leak,
+                    "response": str(resp)[:300],
+                    "elapsed_ms": round(elapsed, 1),
+                    "note": (
+                        "Internal DB/ORM error details returned in the CALLERROR — "
+                        "the input reached the DB layer unsanitised. "
+                        "The DB may have rejected the value, but the error exposes the ORM/DB stack."
+                    ),
+                }
 
         if signal == "timing" and entry.get("delay_seconds"):
             expected_delay = float(entry["delay_seconds"])
@@ -453,18 +472,36 @@ class InjectionChargeBoxId(BaseCheck):
 
         error_source = conn_error or (str(boot_resp) if boot_resp else "")
 
-        db_error = check_error_strings(error_source) if error_source else None
-        if db_error:
-            return {
-                "status": "FAIL",
-                "payload_id": entry["id"],
-                "method": method,
-                "signal": "error",
-                "payload": payload_str,
-                "db_error_type": db_error,
-                "response": error_source[:300],
-                "elapsed_ms": round(elapsed, 1),
-            }
+        if error_source:
+            db_error = check_error_strings(error_source)
+            if db_error:
+                return {
+                    "status": "FAIL",
+                    "payload_id": entry["id"],
+                    "method": method,
+                    "signal": "db_error",
+                    "payload": payload_str,
+                    "db_error_type": db_error,
+                    "response": error_source[:300],
+                    "elapsed_ms": round(elapsed, 1),
+                }
+            leak = check_error_leak(error_source)
+            if leak:
+                return {
+                    "status": "FAIL",
+                    "payload_id": entry["id"],
+                    "method": method,
+                    "signal": "db_error_leaked",
+                    "payload": payload_str,
+                    "db_error_type": leak,
+                    "response": error_source[:300],
+                    "elapsed_ms": round(elapsed, 1),
+                    "note": (
+                        "Internal DB/ORM error details returned in the CALLERROR — "
+                        "the input reached the DB layer unsanitised. "
+                        "The DB may have rejected the value, but the error exposes the ORM/DB stack."
+                    ),
+                }
 
         if signal == "timing" and entry.get("delay_seconds"):
             expected_delay = float(entry["delay_seconds"])

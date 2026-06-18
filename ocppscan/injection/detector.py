@@ -6,6 +6,7 @@ from typing import Any, Optional
 TIMING_THRESHOLD_MULTIPLIER = 2.0
 MIN_TIMING_THRESHOLD_SECONDS = 2.5
 
+# Strings that indicate a SQL query error was returned — suggests injection.
 ERROR_SIGNATURES: dict[str, list[str]] = {
     "mysql": ["You have an error in your SQL syntax", "mysql_fetch", "MySQL server"],
     "mariadb": ["MariaDB", "SQLSTATE"],
@@ -13,6 +14,22 @@ ERROR_SIGNATURES: dict[str, list[str]] = {
     "mssql": ["Unclosed quotation mark", "SQLServer", "OLE DB"],
     "sqlite": ["SQLite3::", "sqlite_query", "SQLITE_ERROR"],
     "generic": ["SQL syntax", "syntax error", "database error", "ORA-", "DB2 SQL"],
+}
+
+# Strings that indicate internal ORM/DB implementation details leaked to the
+# client — signals poor error handling rather than SQL injection success.
+LEAK_SIGNATURES: dict[str, list[str]] = {
+    "orm": [
+        "SequelizeDatabaseError", "SequelizeConnectionError",
+        "TypeORMError", "QueryFailedError",
+        "PrismaClientKnownRequestError", "PrismaClientUnknownRequestError",
+        "Knex: Timeout",
+    ],
+    "postgresql": [
+        "22P05", "22021", "22001",  # encoding/string violations
+        "42601", "42703",           # syntax/column errors
+        "23505", "23503",           # constraint violations
+    ],
 }
 
 
@@ -27,14 +44,32 @@ def is_timing_anomaly(
     )
 
 
-def check_error_strings(response: Any) -> Optional[str]:
-    """Return the matched DB type if error signatures are found in response, else None."""
+def _response_text(response: Any) -> str:
     try:
-        text = json.dumps(response) if not isinstance(response, str) else response
+        return json.dumps(response) if not isinstance(response, str) else response
     except Exception:
-        text = str(response)
-    text_lower = text.lower()
+        return str(response)
+
+
+def check_error_strings(response: Any) -> Optional[str]:
+    """Return matched DB type if SQL query error signatures appear in response."""
+    text_lower = _response_text(response).lower()
     for db_type, sigs in ERROR_SIGNATURES.items():
+        for sig in sigs:
+            if sig.lower() in text_lower:
+                return db_type
+    return None
+
+
+def check_error_leak(response: Any) -> Optional[str]:
+    """Return matched DB/ORM type if implementation details are leaked in response.
+
+    Distinct from check_error_strings: these signatures indicate the error
+    handling layer is exposing internal stack information, not that SQL
+    injection succeeded.
+    """
+    text_lower = _response_text(response).lower()
+    for db_type, sigs in LEAK_SIGNATURES.items():
         for sig in sigs:
             if sig.lower() in text_lower:
                 return db_type
