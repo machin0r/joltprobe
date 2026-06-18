@@ -1,0 +1,6 @@
+{
+  "timestamp": "{{timestamp}}",
+  "connectorStatus": "Faulted",
+  "evseId": 1,
+  "connectorId": 1
+}

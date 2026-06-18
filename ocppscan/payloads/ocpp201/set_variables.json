@@ -1,0 +1,13 @@
+{
+  "setVariableData": [
+    {
+      "attributeValue": "{{value}}",
+      "component": {
+        "name": "{{component}}"
+      },
+      "variable": {
+        "name": "{{variable}}"
+      }
+    }
+  ]
+}

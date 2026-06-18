@@ -1,0 +1,13 @@
+{
+  "reason": "PowerUp",
+  "chargingStation": {
+    "model": "OCPPScan",
+    "vendorName": "OCPPScan",
+    "serialNumber": "SCAN-001",
+    "firmwareVersion": "0.1.0",
+    "modem": {
+      "iccid": "0000000000000000000",
+      "imsi": "000000000000000"
+    }
+  }
+}

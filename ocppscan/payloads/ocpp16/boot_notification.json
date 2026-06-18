@@ -1,0 +1,8 @@
+{
+  "chargePointModel": "OCPPScan",
+  "chargePointVendor": "OCPPScan",
+  "chargePointSerialNumber": "SCAN-001",
+  "firmwareVersion": "0.1.0",
+  "meterSerialNumber": "SCAN-METER-001",
+  "meterType": "AC"
+}

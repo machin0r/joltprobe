@@ -1,0 +1,6 @@
+{
+  "transactionId": "{{transactionId}}",
+  "meterStop": 0,
+  "timestamp": "{{timestamp}}",
+  "reason": "Local"
+}

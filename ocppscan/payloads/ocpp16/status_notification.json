@@ -1,0 +1,6 @@
+{
+  "connectorId": 1,
+  "errorCode": "NoError",
+  "status": "Faulted",
+  "timestamp": "{{timestamp}}"
+}

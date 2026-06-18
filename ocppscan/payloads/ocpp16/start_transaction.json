@@ -1,0 +1,6 @@
+{
+  "connectorId": 1,
+  "idTag": "{{idTag}}",
+  "meterStart": 0,
+  "timestamp": "{{timestamp}}"
+}

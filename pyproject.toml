@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocppscan"
+version = "0.1.0"
+description = "OCPP Security Assessment Tool"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "click>=8.1",
+    "websockets>=12.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+ocppscan = "ocppscan.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ocppscan*"]
+
+[tool.setuptools.package-data]
+ocppscan = ["payloads/**/*"]

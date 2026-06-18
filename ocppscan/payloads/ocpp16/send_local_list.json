@@ -1,0 +1,12 @@
+{
+  "listVersion": 1,
+  "updateType": "Full",
+  "localAuthorizationList": [
+    {
+      "idTag": "{{idTag}}",
+      "idTagInfo": {
+        "status": "Accepted"
+      }
+    }
+  ]
+}
