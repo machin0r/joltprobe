@@ -203,7 +203,10 @@
       <option value="LOW">LOW</option>
     </select>
 
-    <span id="result-counts" class="ms-auto small text-muted" style="display:none"></span>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span id="result-counts" class="small text-muted" style="display:none"></span>
+      <button id="btn-export" class="btn btn-sm btn-outline-secondary" style="display:none">Export JSON</button>
+    </div>
   </div>
 
   <!-- Check list -->
@@ -235,6 +238,8 @@ let selected   = new Set();
 let activeReader = null;
 let completedCount = 0;
 let totalCount     = 0;
+let lastScanData   = null;
+let lastScanConfig = null;
 
 const CAT_DESC = {
   tls:       'Transport Layer Security',
@@ -540,6 +545,8 @@ function clearResults() {
   $('log-panel').textContent = 'No output yet.';
   $('summary-bar').style.display = 'none';
   $('result-counts').style.display = 'none';
+  $('btn-export').style.display = 'none';
+  lastScanData = null;
 }
 
 /* ── populate detail from JSON result ────── */
@@ -592,6 +599,9 @@ function populateDetails(data) {
   $('result-counts').style.display = '';
   $('result-counts').textContent =
     `${data.results.length} checks · ${counts.PASS||0} pass · ${counts.FAIL||0} fail`;
+
+  lastScanData = data;
+  $('btn-export').style.display = '';
 }
 
 /* ── running UI state ────────────────────── */
@@ -621,6 +631,7 @@ async function startScan(ids) {
   if (!conn) return;
 
   if (activeReader) { activeReader.cancel(); activeReader = null; }
+  lastScanConfig = conn;
   clearResults();
   completedCount = 0;
   totalCount = ids.size;
@@ -702,6 +713,32 @@ $('btn-stop').addEventListener('click', () => {
   if (activeReader) { activeReader.cancel(); activeReader = null; }
   setRunning(false);
   appendLog('[Stopped by user]');
+});
+
+$('btn-export').addEventListener('click', () => {
+  const cfg = lastScanConfig || {};
+  const out = {
+    exported_at: new Date().toISOString(),
+    scan_config: {
+      target:           cfg.target           || null,
+      charger_id:       cfg.charger_id       || null,
+      version:          cfg.version          || null,
+      username:         cfg.username         || null,
+      password:         cfg.password         || null,
+      timeout:          cfg.timeout          ?? null,
+      security_profile: cfg.security_profile ?? null,
+    },
+    ...(lastScanData || {}),
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `ocppscan-${(cfg.charger_id || 'scan').replace(/[^a-z0-9]/gi, '_')}-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 });
 </script>
 </body>
