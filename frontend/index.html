@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCPPScan</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background:#f8f9fa; padding-bottom:80px; }
+
+    /* ── sticky top bar ── */
+    #topbar {
+      position: sticky; top: 0; z-index: 200;
+      background: #fff; border-bottom: 1px solid #dee2e6;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    }
+    #progress-track { height: 3px; background: #e9ecef; }
+    #progress-fill  { height: 3px; background: #0d6efd; width: 0; transition: width .25s ease; }
+
+    /* ── severity badges ── */
+    .sev {
+      display: inline-block; padding: 2px 6px; border-radius: 3px;
+      font-size: .68rem; font-weight: 700; letter-spacing: .4px;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .sev-CRITICAL { background:#c0392b; color:#fff; }
+    .sev-HIGH     { background:#e67e22; color:#fff; }
+    .sev-MEDIUM   { background:#f39c12; color:#000; }
+    .sev-LOW      { background:#3498db; color:#fff; }
+    .sev-INFO     { background:#7f8c8d; color:#fff; }
+
+    /* ── result badges ── */
+    .res {
+      display: inline-block; padding: 2px 9px; border-radius: 10px;
+      font-size: .72rem; font-weight: 600; white-space: nowrap;
+    }
+    .res-PASS         { background:#d1f5d3; color:#155724; }
+    .res-FAIL         { background:#fad7da; color:#721c24; }
+    .res-SKIP         { background:#e2e3e5; color:#495057; }
+    .res-ERROR        { background:#fff3cd; color:#856404; }
+    .res-INCONCLUSIVE { background:#cce5ff; color:#004085; }
+
+    /* ── check list ── */
+    .cat-section { margin-bottom: 4px; }
+    .cat-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 0 6px;
+      border-bottom: 2px solid #dee2e6;
+      margin-bottom: 0;
+      background: #f8f9fa;
+    }
+    .cat-name { font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .6px; }
+    .cat-desc { font-size: .78rem; color: #6c757d; }
+
+    .check-item { border-bottom: 1px solid #f0f0f0; }
+    .check-item.hidden { display: none !important; }
+    .check-item.disabled-ver { opacity: .38; }
+
+    .check-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 9px 4px 8px; cursor: pointer;
+      transition: background .1s;
+    }
+    .check-row:hover { background: #f5f7fa; }
+
+    .check-body { flex: 1; min-width: 0; }
+    .check-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .check-name  { font-weight: 600; font-size: .9rem; }
+    .check-id    { font-family: monospace; font-size: .75rem; color: #6c757d; }
+    .check-what  { font-size: .8rem; color: #495057; margin-top: 2px; line-height: 1.4; }
+
+    .check-right { display:flex; align-items:center; gap:8px; flex-shrink:0; padding-top:2px; }
+    .detail-btn  { font-size:.72rem; color:#6c757d; background:none; border:none; padding:0; cursor:pointer; }
+    .detail-btn:hover { color:#0d6efd; text-decoration:underline; }
+
+    .check-detail {
+      display: none;
+      padding: 10px 12px 12px 38px;
+      border-left: 3px solid #dee2e6;
+      margin-left: 4px;
+      background: #fafbfc;
+      font-size: .82rem;
+    }
+    .check-detail.open { display: block; }
+    .check-detail.result-fail { border-left-color: #dc3545; }
+    .check-detail.result-pass { border-left-color: #28a745; }
+
+    .detail-col-head { font-size:.7rem; font-weight:700; text-transform:uppercase;
+                       letter-spacing:.5px; margin-bottom:4px; }
+    .evidence-pre {
+      font-family: monospace; font-size:.75rem; background:#fff;
+      border:1px solid #dee2e6; border-radius:4px; padding:6px 8px;
+      max-height:110px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;
+    }
+
+    /* ── running dot ── */
+    .running-dot {
+      display:inline-block; width:7px; height:7px; border-radius:50%;
+      background:#0d6efd; flex-shrink:0;
+      animation: blink 1.1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+    /* ── log panel ── */
+    #log-panel {
+      font-family: 'Courier New', monospace; font-size:.78rem;
+      background:#1a1a2e; color:#d0d0d0;
+      padding:10px 14px; border-radius:4px;
+      max-height:260px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;
+    }
+    .lp { color:#4caf50; } .lf { color:#f44336; }
+    .le { color:#ff9800; } .ls { color:#888; }
+
+    /* ── summary bar ── */
+    #summary-bar { display:none; }
+  </style>
+</head>
+<body>
+
+<!-- ══ STICKY TOP BAR ══════════════════════════════════════════ -->
+<div id="topbar">
+  <div class="d-flex align-items-center gap-2 px-3 py-2 flex-wrap">
+
+    <span class="fw-bold me-1" style="font-size:.95rem">
+      OCPPScan <span class="badge bg-secondary fw-normal" style="font-size:.6rem">v0.1.0</span>
+    </span>
+
+    <!-- Connection fields (inline, compact) -->
+    <input id="f-target" type="text" class="form-control form-control-sm"
+           style="max-width:300px" placeholder="ws://csms.example.com:9000/ocpp">
+    <input id="f-charger-id" type="text" class="form-control form-control-sm"
+           style="max-width:110px" placeholder="Charger ID">
+    <select id="f-version" class="form-select form-select-sm" style="max-width:80px">
+      <option value="1.6" selected>1.6</option>
+      <option value="2.0.1">2.0.1</option>
+    </select>
+
+    <!-- More settings toggle -->
+    <button class="btn btn-sm btn-outline-secondary" type="button"
+            data-bs-toggle="collapse" data-bs-target="#more-settings">More&nbsp;▾</button>
+
+    <!-- Run controls -->
+    <div class="d-flex gap-2 ms-auto align-items-center flex-shrink-0">
+      <span id="sel-label" class="text-muted small d-none d-md-inline">0 selected</span>
+      <button id="btn-run-all" class="btn btn-sm btn-outline-primary">Run All</button>
+      <button id="btn-run"     class="btn btn-sm btn-primary" disabled>Run Selected (0)</button>
+      <button id="btn-stop"    class="btn btn-sm btn-outline-danger" style="display:none">Stop</button>
+    </div>
+  </div>
+
+  <!-- More settings collapse -->
+  <div class="collapse border-top" id="more-settings">
+    <div class="d-flex flex-wrap align-items-end gap-2 px-3 py-2">
+      <div>
+        <label class="form-label small mb-1">Username</label>
+        <input id="f-username" type="text" class="form-control form-control-sm"
+               style="width:130px" placeholder="optional" autocomplete="off">
+      </div>
+      <div>
+        <label class="form-label small mb-1">Password</label>
+        <input id="f-password" type="password" class="form-control form-control-sm"
+               style="width:130px" placeholder="optional" autocomplete="off">
+      </div>
+      <div>
+        <label class="form-label small mb-1">Timeout (s)</label>
+        <input id="f-timeout" type="number" class="form-control form-control-sm"
+               style="width:80px" value="10" min="1" step="1">
+      </div>
+      <div>
+        <label class="form-label small mb-1">Security Profile</label>
+        <select id="f-security-profile" class="form-select form-select-sm" style="width:90px">
+          <option value="" selected>—</option>
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="progress-track"><div id="progress-fill"></div></div>
+</div>
+<!-- ══ END TOP BAR ══════════════════════════════════════════════ -->
+
+<div class="container-xl px-3 pt-3">
+
+  <!-- Summary bar (shown after a run) -->
+  <div id="summary-bar" class="alert py-2 mb-3"></div>
+
+  <!-- Controls row -->
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <button id="btn-all"  class="btn btn-sm btn-outline-secondary">Select all</button>
+    <button id="btn-none" class="btn btn-sm btn-outline-secondary">Clear</button>
+
+    <div class="input-group input-group-sm" style="max-width:200px">
+      <span class="input-group-text" style="font-size:.75rem">&#128269;</span>
+      <input id="q-search" type="search" class="form-control" placeholder="Filter…">
+    </div>
+
+    <select id="q-sev" class="form-select form-select-sm" style="width:auto">
+      <option value="">All severities</option>
+      <option value="CRITICAL">CRITICAL</option>
+      <option value="HIGH">HIGH</option>
+      <option value="MEDIUM">MEDIUM</option>
+      <option value="LOW">LOW</option>
+    </select>
+
+    <span id="result-counts" class="ms-auto small text-muted" style="display:none"></span>
+  </div>
+
+  <!-- Check list -->
+  <div id="check-list">
+    <div class="text-muted small p-3">Loading checks…</div>
+  </div>
+
+  <!-- Raw log -->
+  <div class="mt-4">
+    <button class="btn btn-sm btn-outline-secondary w-100 text-start py-1"
+            type="button" data-bs-toggle="collapse" data-bs-target="#log-collapse"
+            style="font-size:.78rem">
+      Raw output log ▾
+    </button>
+    <div class="collapse" id="log-collapse">
+      <div id="log-panel" class="mt-1 text-muted">No output yet.</div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+'use strict';
+
+/* ── globals ─────────────────────────────── */
+let manifest   = {};
+let selected   = new Set();
+let activeReader = null;
+let completedCount = 0;
+let totalCount     = 0;
+
+const CAT_DESC = {
+  tls:       'Transport Layer Security',
+  auth:      'Authentication & authorisation',
+  session:   'Session management',
+  downgrade: 'Security profile downgrade',
+  message:   'Message validation',
+  billing:   'Billing integrity',
+  websocket: 'WebSocket protocol',
+  dos:       'Denial of Service',
+  injection: 'Injection attacks',
+};
+
+const STATUS_ICON = { PASS:'✓', FAIL:'✗', SKIP:'–', ERROR:'!', INCONCLUSIVE:'?' };
+
+/* ── tiny helpers ────────────────────────── */
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function $(id) { return document.getElementById(id); }
+function domId(checkId) { return checkId.replace(/\./g,'-'); }
+
+/* ── load manifest ───────────────────────── */
+fetch('/checks')
+  .then(r => r.json())
+  .then(data => { manifest = data; renderCheckList(); })
+  .catch(() => {
+    $('check-list').innerHTML = '<div class="alert alert-danger m-3">Failed to load check list from server.</div>';
+  });
+
+/* ── render the full check list ──────────── */
+function renderCheckList() {
+  const list = $('check-list');
+  list.innerHTML = '';
+
+  for (const [cat, checks] of Object.entries(manifest)) {
+    const section = document.createElement('div');
+    section.className = 'cat-section';
+    section.dataset.cat = cat;
+
+    // Category header
+    section.innerHTML = `
+      <div class="cat-header">
+        <input type="checkbox" class="form-check-input cat-cb" data-cat="${cat}"
+               style="margin-top:0;flex-shrink:0" title="Select all in ${cat}">
+        <span class="cat-name">${cat}</span>
+        <span class="badge bg-secondary" style="font-size:.62rem">${checks.length}</span>
+        <span class="cat-desc">${esc(CAT_DESC[cat]||'')}</span>
+      </div>
+    `;
+
+    for (const c of checks) {
+      section.appendChild(makeCheckItem(c, cat));
+    }
+    list.appendChild(section);
+  }
+
+  // Wire category checkboxes
+  document.querySelectorAll('.cat-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const cat = cb.dataset.cat;
+      document.querySelectorAll(`.check-cb[data-cat="${cat}"]:not(:disabled)`).forEach(c => {
+        c.checked = cb.checked;
+        cb.checked ? selected.add(c.dataset.id) : selected.delete(c.dataset.id);
+      });
+      updateRunBtn();
+    });
+  });
+
+  // Version filter on change
+  $('f-version').addEventListener('change', applyVersionFilter);
+  applyVersionFilter();
+}
+
+function makeCheckItem(c, cat) {
+  const el = document.createElement('div');
+  el.className = 'check-item';
+  el.id = `ci-${domId(c.id)}`;
+  el.dataset.id  = c.id;
+  el.dataset.cat = cat;
+  el.dataset.sev = c.severity;
+  el.dataset.lname = c.name.toLowerCase() + ' ' + c.id;
+  el.dataset.applies = c.applies_to.join(',');
+
+  el.innerHTML = `
+    <div class="check-row">
+      <input type="checkbox" class="form-check-input check-cb flex-shrink-0"
+             style="margin-top:3px" data-id="${c.id}" data-cat="${cat}">
+      <span class="sev sev-${c.severity}">${c.severity}</span>
+      <div class="check-body">
+        <div class="check-title">
+          <span class="check-name">${esc(c.name)}</span>
+          <span class="check-id">${c.id}</span>
+        </div>
+        <div class="check-what">${esc(c.what||'')}</div>
+      </div>
+      <div class="check-right">
+        <span class="result-slot" id="rs-${domId(c.id)}"></span>
+        <button class="detail-btn" data-id="${c.id}">details ▾</button>
+      </div>
+    </div>
+
+    <div class="check-detail" id="cd-${domId(c.id)}">
+      <div class="row g-3 mb-2">
+        <div class="col-md-4">
+          <div class="detail-col-head text-muted">What it tests</div>
+          <p class="mb-0" style="font-size:.8rem">${esc(c.what||'—')}</p>
+        </div>
+        <div class="col-md-4">
+          <div class="detail-col-head text-danger">If FAIL</div>
+          <p class="mb-0" style="font-size:.8rem">${esc(c.fail||'—')}</p>
+        </div>
+        <div class="col-md-4">
+          <div class="detail-col-head text-success">If PASS</div>
+          <p class="mb-0" style="font-size:.8rem">${esc(c.pass||'—')}</p>
+        </div>
+      </div>
+      <div id="rd-${domId(c.id)}" style="display:none"></div>
+    </div>
+  `;
+
+  // Checkbox
+  el.querySelector('.check-cb').addEventListener('change', e => {
+    e.target.checked ? selected.add(c.id) : selected.delete(c.id);
+    syncCatCheckbox(cat);
+    updateRunBtn();
+  });
+
+  // Clicking the row (not cb, not detail btn) toggles detail
+  el.querySelector('.check-row').addEventListener('click', e => {
+    if (e.target.classList.contains('check-cb') ||
+        e.target.classList.contains('detail-btn')) return;
+    toggleDetail(c.id);
+  });
+
+  el.querySelector('.detail-btn').addEventListener('click', () => toggleDetail(c.id));
+
+  return el;
+}
+
+function toggleDetail(checkId) {
+  const el = $(`cd-${domId(checkId)}`);
+  if (el) el.classList.toggle('open');
+}
+
+/* ── category checkbox sync ──────────────── */
+function syncCatCheckbox(cat) {
+  const cbs = [...document.querySelectorAll(`.check-cb[data-cat="${cat}"]:not(:disabled)`)];
+  const n   = cbs.filter(c => c.checked).length;
+  const cb  = document.querySelector(`.cat-cb[data-cat="${cat}"]`);
+  if (!cb) return;
+  cb.indeterminate = n > 0 && n < cbs.length;
+  cb.checked = n > 0 && n === cbs.length;
+}
+
+/* ── version filter ──────────────────────── */
+function applyVersionFilter() {
+  const ver = $('f-version').value;
+  document.querySelectorAll('.check-item').forEach(item => {
+    const ok = item.dataset.applies.split(',').includes(ver);
+    const cb = item.querySelector('.check-cb');
+    cb.disabled = !ok;
+    item.classList.toggle('disabled-ver', !ok);
+    if (!ok && selected.has(item.dataset.id)) {
+      selected.delete(item.dataset.id);
+      cb.checked = false;
+    }
+  });
+  Object.keys(manifest).forEach(syncCatCheckbox);
+  updateRunBtn();
+}
+
+/* ── select all / clear ──────────────────── */
+$('btn-all').addEventListener('click', () => {
+  document.querySelectorAll('.check-cb:not(:disabled)').forEach(cb => {
+    cb.checked = true;
+    selected.add(cb.dataset.id);
+  });
+  document.querySelectorAll('.cat-cb').forEach(cb => {
+    cb.checked = true; cb.indeterminate = false;
+  });
+  updateRunBtn();
+});
+
+$('btn-none').addEventListener('click', () => {
+  document.querySelectorAll('.check-cb:not(:disabled)').forEach(cb => {
+    cb.checked = false;
+    selected.delete(cb.dataset.id);
+  });
+  document.querySelectorAll('.cat-cb').forEach(cb => {
+    cb.checked = false; cb.indeterminate = false;
+  });
+  updateRunBtn();
+});
+
+/* ── search + severity filter ─────────────── */
+function applyFilters() {
+  const q   = $('q-search').value.toLowerCase();
+  const sev = $('q-sev').value;
+  let vis = 0;
+  document.querySelectorAll('.check-item').forEach(item => {
+    const matchQ = !q || item.dataset.lname.includes(q);
+    const matchS = !sev || item.dataset.sev === sev;
+    item.classList.toggle('hidden', !(matchQ && matchS));
+    if (matchQ && matchS) vis++;
+  });
+  // Hide empty category sections
+  document.querySelectorAll('.cat-section').forEach(sec => {
+    const any = [...sec.querySelectorAll('.check-item')].some(i => !i.classList.contains('hidden'));
+    sec.style.display = any ? '' : 'none';
+  });
+}
+$('q-search').addEventListener('input', applyFilters);
+$('q-sev').addEventListener('change', applyFilters);
+
+/* ── run button ──────────────────────────── */
+function updateRunBtn() {
+  const n = selected.size;
+  $('btn-run').disabled = n === 0;
+  $('btn-run').textContent = `Run Selected (${n})`;
+  $('sel-label').textContent = `${n} selected`;
+}
+
+/* ── connection fields ───────────────────── */
+function getConn() {
+  return {
+    target:           $('f-target').value.trim(),
+    charger_id:       $('f-charger-id').value.trim(),
+    version:          $('f-version').value,
+    username:         $('f-username').value.trim() || null,
+    password:         $('f-password').value || null,
+    timeout:          parseFloat($('f-timeout').value) || 10,
+    security_profile: $('f-security-profile').value ? parseInt($('f-security-profile').value) : null,
+  };
+}
+
+function validateConn() {
+  const c = getConn();
+  if (!c.target || !c.charger_id) {
+    bootstrap.Collapse.getOrCreateInstance($('more-settings')).hide();
+    $('f-target').focus();
+    $('f-target').classList.add('is-invalid');
+    setTimeout(() => $('f-target').classList.remove('is-invalid'), 2000);
+    return null;
+  }
+  return c;
+}
+
+/* ── progress ────────────────────────────── */
+function setProgress(n, total) {
+  $('progress-fill').style.width = total > 0 ? (n/total*100)+'%' : '0';
+}
+
+/* ── log panel ───────────────────────────── */
+function appendLog(text) {
+  const p = $('log-panel');
+  if (p.classList.contains('text-muted')) { p.innerHTML = ''; p.className = ''; }
+  const d = document.createElement('div');
+  if (/PASS|✓/.test(text)) d.className='lp';
+  else if (/FAIL|✗/.test(text)) d.className='lf';
+  else if (/ERROR/.test(text)) d.className='le';
+  else if (/SKIP/.test(text)) d.className='ls';
+  d.textContent = text;
+  p.appendChild(d);
+  p.scrollTop = p.scrollHeight;
+}
+
+/* ── parse a result line ─────────────────── */
+function parseResult(line) {
+  const m = line.match(/([a-z]+\.[a-z-]+)\s+(CRITICAL|HIGH|MEDIUM|LOW|INFO)\s+(PASS|FAIL|SKIP|ERROR|INCONCLUSIVE)/);
+  return m ? { id: m[1], status: m[3] } : null;
+}
+
+/* ── update a check's result slot ─────────── */
+function setResult(checkId, status) {
+  const slot = $(`rs-${domId(checkId)}`);
+  if (slot) {
+    slot.className = `res res-${status}`;
+    slot.textContent = `${STATUS_ICON[status]||''} ${status}`;
+  }
+  if (status === 'FAIL') {
+    const det = $(`cd-${domId(checkId)}`);
+    if (det) det.classList.add('open', 'result-fail');
+  } else if (status === 'PASS') {
+    const det = $(`cd-${domId(checkId)}`);
+    if (det) det.classList.add('result-pass');
+  }
+}
+
+/* ── clear all results ───────────────────── */
+function clearResults() {
+  document.querySelectorAll('.result-slot').forEach(el => {
+    el.className = 'result-slot'; el.textContent = '';
+  });
+  document.querySelectorAll('.check-detail').forEach(el => {
+    el.classList.remove('result-fail','result-pass');
+  });
+  document.querySelectorAll('[id^="rd-"]').forEach(el => {
+    el.style.display = 'none'; el.innerHTML = '';
+  });
+  $('log-panel').innerHTML = '';
+  $('log-panel').className = 'text-muted';
+  $('log-panel').textContent = 'No output yet.';
+  $('summary-bar').style.display = 'none';
+  $('result-counts').style.display = 'none';
+}
+
+/* ── populate detail from JSON result ────── */
+function populateDetails(data) {
+  if (!data || !data.results) return;
+
+  const counts = { PASS:0, FAIL:0, SKIP:0, ERROR:0 };
+  const sevs   = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 };
+
+  for (const r of data.results) {
+    counts[r.status] = (counts[r.status]||0) + 1;
+    if (r.status === 'FAIL') sevs[r.severity] = (sevs[r.severity]||0) + 1;
+
+    const rd = $(`rd-${domId(r.id)}`);
+    if (!rd) continue;
+
+    let html = '';
+    if (r.description) {
+      html += `<p class="mb-2" style="font-size:.8rem">${esc(r.description)}</p>`;
+    }
+    if (r.evidence && Object.keys(r.evidence).length) {
+      html += `<div class="detail-col-head text-muted">Evidence</div>`;
+      html += `<pre class="evidence-pre mb-2">${esc(JSON.stringify(r.evidence, null, 2))}</pre>`;
+    }
+    if (r.remediation) {
+      html += `<div class="detail-col-head" style="color:#0d6efd">Remediation</div>`;
+      html += `<p class="mb-2" style="font-size:.8rem">${esc(r.remediation)}</p>`;
+    }
+    if (r.references && r.references.length) {
+      html += `<div class="small text-muted">${esc(r.references.join(' · '))}</div>`;
+    }
+    if (html) { rd.innerHTML = html; rd.style.display = ''; }
+  }
+
+  // Summary bar
+  const overallSev = ['CRITICAL','HIGH','MEDIUM','LOW'].find(s => sevs[s] > 0);
+  const bar = $('summary-bar');
+  const sevColor = {CRITICAL:'danger',HIGH:'warning',MEDIUM:'warning',LOW:'info'};
+  bar.className = `alert py-2 mb-3 alert-${overallSev ? sevColor[overallSev] : 'success'}`;
+  const parts = [];
+  if (counts.PASS)  parts.push(`<span class="fw-semibold text-success">✓ ${counts.PASS} PASS</span>`);
+  if (counts.FAIL)  parts.push(`<span class="fw-semibold text-danger">✗ ${counts.FAIL} FAIL</span>`);
+  if (counts.SKIP)  parts.push(`<span class="text-muted">– ${counts.SKIP} SKIP</span>`);
+  if (counts.ERROR) parts.push(`<span class="fw-semibold text-warning">! ${counts.ERROR} ERROR</span>`);
+  const sevParts = Object.entries(sevs).filter(([,n])=>n>0)
+    .map(([s,n]) => `<span class="badge sev-${s}">${s} ${n}</span>`);
+  bar.innerHTML = parts.join(' &nbsp;·&nbsp; ') + (sevParts.length ? '&emsp;' + sevParts.join(' ') : '');
+  bar.style.display = '';
+
+  $('result-counts').style.display = '';
+  $('result-counts').textContent =
+    `${data.results.length} checks · ${counts.PASS||0} pass · ${counts.FAIL||0} fail`;
+}
+
+/* ── running UI state ────────────────────── */
+function setRunning(on) {
+  $('btn-run').disabled     = on || selected.size === 0;
+  $('btn-run-all').disabled = on;
+  $('btn-stop').style.display = on ? '' : 'none';
+  if (!on) setProgress(0, 0);
+}
+
+/* ── build scan body from a set of ids ────── */
+function buildBody(ids) {
+  const conn = getConn();
+  const idArr = [...ids];
+  return {
+    ...conn,
+    checks:      idArr.join(','),
+    enable_dos:  idArr.some(id => id.startsWith('dos.')),
+    enable_soap: idArr.includes('injection.soap'),
+    idtag_attempts: 20,
+  };
+}
+
+/* ── streaming scan ──────────────────────── */
+async function startScan(ids) {
+  const conn = validateConn();
+  if (!conn) return;
+
+  if (activeReader) { activeReader.cancel(); activeReader = null; }
+  clearResults();
+  completedCount = 0;
+  totalCount = ids.size;
+  setProgress(0, totalCount);
+  setRunning(true);
+
+  const body = buildBody(ids);
+
+  try {
+    const resp = await fetch('/scan', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      appendLog(`[Error] Server returned ${resp.status}: ${await resp.text()}`);
+      setRunning(false);
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    activeReader = reader;
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const part of parts) {
+        const dl = part.split('\n').find(l => l.startsWith('data:'));
+        if (!dl) continue;
+        let payload;
+        try { payload = JSON.parse(dl.slice(5).trim()); } catch { continue; }
+
+        if (payload.done) {
+          setRunning(false);
+          if (payload.scan_id) {
+            fetch(`/scan-result/${payload.scan_id}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => d && populateDetails(d))
+              .catch(() => {});
+          }
+        } else if (payload.line !== undefined) {
+          appendLog(payload.line);
+          const r = parseResult(payload.line);
+          if (r) {
+            setResult(r.id, r.status);
+            completedCount++;
+            setProgress(completedCount, totalCount);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') appendLog(`[Error] ${err.message}`);
+  } finally {
+    activeReader = null;
+    setRunning(false);
+  }
+}
+
+/* ── button wiring ───────────────────────── */
+$('btn-run').addEventListener('click', () => {
+  if (selected.size) startScan(selected);
+});
+
+$('btn-run-all').addEventListener('click', () => {
+  const all = new Set(
+    [...document.querySelectorAll('.check-cb:not(:disabled)')].map(c => c.dataset.id)
+  );
+  startScan(all);
+});
+
+$('btn-stop').addEventListener('click', () => {
+  if (activeReader) { activeReader.cancel(); activeReader = null; }
+  setRunning(false);
+  appendLog('[Stopped by user]');
+});
+</script>
+</body>
+</html>

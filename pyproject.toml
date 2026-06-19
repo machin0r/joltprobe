@@ -15,12 +15,19 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.optional-dependencies]
+frontend = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+]
+
 [project.scripts]
-ocppscan = "ocppscan.cli:cli"
+ocppscan     = "ocppscan.cli:cli"
+ocppscan-web = "frontend.app:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["ocppscan*"]
+where   = ["."]
+include = ["ocppscan*", "frontend*"]
 
 [tool.setuptools.package-data]
 ocppscan = ["payloads/**/*", "injection/payloads/**/*"]
