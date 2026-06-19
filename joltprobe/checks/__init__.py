@@ -1,5 +1,5 @@
-from ocppscan.checks.tls import TLSNoTLS, TLSSelfSigned, TLSVersion, TLSCiphers, TLSNoClientCert
-from ocppscan.checks.auth import (
+from joltprobe.checks.tls import TLSNoTLS, TLSSelfSigned, TLSVersion, TLSCiphers, TLSNoClientCert
+from joltprobe.checks.auth import (
     AuthNoBasicAuth,
     AuthDefaultCredentials,
     AuthArbitraryChargerId,
@@ -7,7 +7,7 @@ from ocppscan.checks.auth import (
     AuthNoBootRequired,
     AuthIdTagEnumeration,
 )
-from ocppscan.checks.session import (
+from joltprobe.checks.session import (
     SessionMeterWithoutTransaction,
     SessionStopForeignTransaction,
     SessionStartWithoutAuth,
@@ -16,12 +16,12 @@ from ocppscan.checks.session import (
     SessionTransactionIdEnumeration,
     SessionConcurrentTransactions,
 )
-from ocppscan.checks.downgrade import (
+from joltprobe.checks.downgrade import (
     DowngradeProfileReconnect,
     DowngradeChangeConfig,
     DowngradeStaleProfile,
 )
-from ocppscan.checks.message import (
+from joltprobe.checks.message import (
     MessageMalformedJson,
     MessageOversizedFields,
     MessageWrongTypes,
@@ -32,10 +32,10 @@ from ocppscan.checks.message import (
     MessageTimestampSkew,
     MessageUnicodeNullBytes,
 )
-from ocppscan.checks.billing import BillingNegativeMeterValue, BillingInflatedMeterValue
-from ocppscan.checks.websocket import WebsocketNoSubprotocol, WebsocketWrongSubprotocol
-from ocppscan.checks.dos import DosConnectionFlood, DosMessageRate, DosLargePayload
-from ocppscan.injection.checks import (
+from joltprobe.checks.billing import BillingNegativeMeterValue, BillingInflatedMeterValue
+from joltprobe.checks.websocket import WebsocketNoSubprotocol, WebsocketWrongSubprotocol
+from joltprobe.checks.dos import DosConnectionFlood, DosMessageRate, DosLargePayload
+from joltprobe.injection.checks import (
     InjectionChargeBoxId,
     InjectionIdTag,
     InjectionVendorId,

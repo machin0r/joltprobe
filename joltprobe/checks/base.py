@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from ocppscan.connection import ScanSession
+    from joltprobe.connection import ScanSession
 
 
 class Severity(str, Enum):

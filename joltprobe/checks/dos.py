@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any
 
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 
 class DosConnectionFlood(BaseCheck):
@@ -159,7 +159,7 @@ class DosLargePayload(BaseCheck):
             payload_obj: dict = {"chargePointModel": large_value[:1000], "chargePointVendor": large_value[:1000]}
             action = "BootNotification"
         else:
-            payload_obj = {"reason": "PowerUp", "chargingStation": {"model": large_value[:1000], "vendorName": "OCPPScan"}}
+            payload_obj = {"reason": "PowerUp", "chargingStation": {"model": large_value[:1000], "vendorName": "JoltProbe"}}
             action = "BootNotification"
 
         raw_msg = json.dumps([2, msg_id, action, payload_obj])

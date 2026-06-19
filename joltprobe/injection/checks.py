@@ -10,10 +10,10 @@ from typing import Any, Optional
 
 import yaml
 
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
-from ocppscan.connection import OCPPConnection
-from ocppscan.injection.baseline import establish_baseline, establish_connection_baseline
-from ocppscan.injection.detector import (
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.connection import OCPPConnection
+from joltprobe.injection.baseline import establish_baseline, establish_connection_baseline
+from joltprobe.injection.detector import (
     check_error_leak,
     check_error_strings,
     check_template_reflection,
@@ -372,11 +372,11 @@ class InjectionChargeBoxId(BaseCheck):
             try:
                 template_baseline_resp = await _conn.send_call(
                     "BootNotification",
-                    {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+                    {"chargePointModel": "JoltProbe", "chargePointVendor": "JoltProbe"}
                     if self.session.version == "1.6"
                     else {
                         "reason": "PowerUp",
-                        "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"},
+                        "chargingStation": {"model": "JoltProbe", "vendorName": "JoltProbe"},
                     },
                 )
             except Exception:
@@ -481,11 +481,11 @@ class InjectionChargeBoxId(BaseCheck):
                 assert conn is not None
                 boot_resp = await conn.send_call(
                     "BootNotification",
-                    {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+                    {"chargePointModel": "JoltProbe", "chargePointVendor": "JoltProbe"}
                     if self.session.version == "1.6"
                     else {
                         "reason": "PowerUp",
-                        "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"},
+                        "chargingStation": {"model": "JoltProbe", "vendorName": "JoltProbe"},
                     },
                 )
             except asyncio.TimeoutError:
@@ -594,11 +594,11 @@ class InjectionChargeBoxId(BaseCheck):
                 try:
                     resp = await conn.send_call(
                         "BootNotification",
-                        {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+                        {"chargePointModel": "JoltProbe", "chargePointVendor": "JoltProbe"}
                         if self.session.version == "1.6"
                         else {
                             "reason": "PowerUp",
-                            "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"},
+                            "chargingStation": {"model": "JoltProbe", "vendorName": "JoltProbe"},
                         },
                     )
                     return {"connected": True, "resp": resp}
@@ -707,7 +707,7 @@ class InjectionMessageId(_BaseFieldCheck):
     async def _send_payload(self, conn: OCPPConnection, payload_str: str) -> Any:
         return await conn.send_call(
             "DataTransfer",
-            {"vendorId": "OCPPScan", "messageId": payload_str, "data": ""},
+            {"vendorId": "JoltProbe", "messageId": payload_str, "data": ""},
         )
 
 
@@ -740,7 +740,7 @@ class InjectionReason(_BaseFieldCheck):
                 "meterStop": 0,
                 "timestamp": ts,
                 "reason": payload_str,
-                "idTag": "OCPPScan",
+                "idTag": "JoltProbe",
             },
         )
 

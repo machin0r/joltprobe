@@ -7,7 +7,7 @@ from typing import Optional
 
 import yaml
 
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 _PAYLOADS_DIR = Path(__file__).parent.parent / "payloads"
 _DEFAULT_CREDS = _PAYLOADS_DIR / "common" / "default_credentials.yaml"
@@ -152,11 +152,11 @@ class AuthArbitraryChargerId(BaseCheck):
     async def run(self) -> CheckResult:
         rogue_id = f"ROGUE-{uuid.uuid4().hex[:8].upper()}"
         boot_payload = (
-            {"chargePointModel": "RogueCP", "chargePointVendor": "OCPPScan"}
+            {"chargePointModel": "RogueCP", "chargePointVendor": "JoltProbe"}
             if self.session.version == "1.6"
             else {
                 "reason": "PowerUp",
-                "chargingStation": {"model": "RogueCP", "vendorName": "OCPPScan"},
+                "chargingStation": {"model": "RogueCP", "vendorName": "JoltProbe"},
             }
         )
 
@@ -210,11 +210,11 @@ class AuthDuplicateIdentity(BaseCheck):
     async def run(self) -> CheckResult:
         charger_id = self.session.charger_id
         boot_payload = (
-            {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+            {"chargePointModel": "JoltProbe", "chargePointVendor": "JoltProbe"}
             if self.session.version == "1.6"
             else {
                 "reason": "PowerUp",
-                "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"},
+                "chargingStation": {"model": "JoltProbe", "vendorName": "JoltProbe"},
             }
         )
 

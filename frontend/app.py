@@ -14,13 +14,13 @@ from pydantic import BaseModel
 
 HERE = Path(__file__).parent
 
-_which = shutil.which("ocppscan")
-OCPPSCAN_CMD: list[str] = [_which] if _which else [sys.executable, "-m", "ocppscan.cli"]
+_which = shutil.which("joltprobe")
+JOLTPROBE_CMD: list[str] = [_which] if _which else [sys.executable, "-m", "joltprobe.cli"]
 
-app = FastAPI(title="OCPPScan", docs_url=None, redoc_url=None)
+app = FastAPI(title="JoltProbe", docs_url=None, redoc_url=None)
 
 def _build_checks_manifest() -> dict:
-    from ocppscan.checks import CATEGORIES
+    from joltprobe.checks import CATEGORIES
 
     result = {}
     for category, check_classes in CATEGORIES.items():
@@ -56,7 +56,7 @@ async def get_checks():
 async def get_scan_result(scan_id: str):
     if not all(c in "0123456789abcdef" for c in scan_id):
         return JSONResponse({"error": "invalid id"}, status_code=400)
-    path = Path(tempfile.gettempdir()) / f"ocppscan-{scan_id}.json"
+    path = Path(tempfile.gettempdir()) / f"joltprobe-{scan_id}.json"
     if not path.exists():
         return JSONResponse({"error": "not found"}, status_code=404)
     try:
@@ -91,7 +91,7 @@ class RunCheckRequest(BaseModel):
 
 
 def _build_scan_cmd(req: ScanRequest, result_file: Optional[str] = None) -> list[str]:
-    cmd = [*OCPPSCAN_CMD, "scan", req.target, "--charger-id", req.charger_id]
+    cmd = [*JOLTPROBE_CMD, "scan", req.target, "--charger-id", req.charger_id]
     cmd += ["--version", req.version]
     if req.checks:
         cmd += ["--checks", req.checks]
@@ -115,7 +115,7 @@ def _build_scan_cmd(req: ScanRequest, result_file: Optional[str] = None) -> list
 
 
 def _build_check_cmd(req: RunCheckRequest) -> list[str]:
-    cmd = [*OCPPSCAN_CMD, "checks", "run", req.check_id]
+    cmd = [*JOLTPROBE_CMD, "checks", "run", req.check_id]
     cmd += ["--target", req.target, "--charger-id", req.charger_id]
     cmd += ["--version", req.version]
     if req.timeout != 10.0:
@@ -161,7 +161,7 @@ async def _stream_subprocess(
 @app.post("/scan")
 async def run_scan(req: ScanRequest):
     scan_id = uuid.uuid4().hex
-    result_path = Path(tempfile.gettempdir()) / f"ocppscan-{scan_id}.json"
+    result_path = Path(tempfile.gettempdir()) / f"joltprobe-{scan_id}.json"
     cmd = _build_scan_cmd(req, result_file=str(result_path))
     return StreamingResponse(_stream_subprocess(cmd, scan_id=scan_id), media_type="text/event-stream")
 

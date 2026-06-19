@@ -4,7 +4,7 @@ import asyncio
 import ssl
 from urllib.parse import urlparse
 
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 
 class TLSNoTLS(BaseCheck):

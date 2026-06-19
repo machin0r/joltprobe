@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ocppscan.checks.base import CheckResult
+from joltprobe.checks.base import CheckResult
 
 
 def render_json(meta: dict[str, Any], results: list[CheckResult]) -> str:
@@ -20,7 +20,7 @@ def render_json(meta: dict[str, Any], results: list[CheckResult]) -> str:
             break
 
     output = {
-        "ocppscan_version": "0.1.0",
+        "joltprobe_version": "0.1.0",
         "meta": meta,
         "summary": {
             "total": len(results),

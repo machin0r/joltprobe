@@ -1,8 +1,8 @@
 {
   "reason": "PowerUp",
   "chargingStation": {
-    "model": "OCPPScan",
-    "vendorName": "OCPPScan",
+    "model": "JoltProbe",
+    "vendorName": "JoltProbe",
     "serialNumber": "SCAN-001",
     "firmwareVersion": "0.1.0",
     "modem": {

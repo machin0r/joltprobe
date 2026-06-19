@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 
 class DowngradeProfileReconnect(BaseCheck):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 
 _INJECTION_CHARGER_IDS = [
@@ -271,13 +271,13 @@ class MessageUnknownAction(BaseCheck):
             return self._error(f"Could not obtain shared connection: {e}")
 
         try:
-            resp = await conn.send_call("OCPPScanProbe_NonExistentAction_XYZ", {})
+            resp = await conn.send_call("JoltProbeProbe_NonExistentAction_XYZ", {})
             msg_type = resp[0]
             if msg_type == 4:
                 error_code = resp[2] if len(resp) > 2 else ""
                 return self._pass(
                     "CSMS returned a well-formed CALLERROR for an unknown action",
-                    evidence={"error_code": error_code, "action": "OCPPScanProbe_NonExistentAction_XYZ"},
+                    evidence={"error_code": error_code, "action": "JoltProbeProbe_NonExistentAction_XYZ"},
                 )
             return self._fail(
                 "CSMS returned a CALLRESULT (not CALLERROR) for an unknown action",
@@ -291,7 +291,7 @@ class MessageUnknownAction(BaseCheck):
         except asyncio.TimeoutError:
             return self._fail(
                 "CSMS did not respond to an unknown action (timeout — possible crash or hang)",
-                evidence={"action": "OCPPScanProbe_NonExistentAction_XYZ"},
+                evidence={"action": "JoltProbeProbe_NonExistentAction_XYZ"},
                 remediation="Return a CALLERROR for unknown action types rather than silently dropping them.",
                 references=["OCPP 1.6 Section 4"],
             )
@@ -316,9 +316,9 @@ class MessageDeeplyNestedJson(BaseCheck):
             return self._error(f"Could not connect: {e}")
 
         if self.session.version == "1.6":
-            inner: dict = {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+            inner: dict = {"chargePointModel": "JoltProbe", "chargePointVendor": "JoltProbe"}
         else:
-            inner = {"reason": "PowerUp", "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"}}
+            inner = {"reason": "PowerUp", "chargingStation": {"model": "JoltProbe", "vendorName": "JoltProbe"}}
 
         payload: dict = inner
         for _ in range(500):
@@ -456,9 +456,9 @@ class MessageUnicodeNullBytes(BaseCheck):
 
         def _boot_msg(vendor: str) -> str:
             if self.session.version == "1.6":
-                payload = {"chargePointVendor": vendor, "chargePointModel": "OCPPScan"}
+                payload = {"chargePointVendor": vendor, "chargePointModel": "JoltProbe"}
             else:
-                payload = {"reason": "PowerUp", "chargingStation": {"model": "OCPPScan", "vendorName": vendor}}
+                payload = {"reason": "PowerUp", "chargingStation": {"model": "JoltProbe", "vendorName": vendor}}
             return json.dumps([2, "uni001", "BootNotification", payload])
 
         injection_cases = [
@@ -468,7 +468,7 @@ class MessageUnicodeNullBytes(BaseCheck):
         ]
         lone_surrogate_raw = (
             '[2, "uni002", "BootNotification", '
-            '{"chargePointVendor": "vendor\\ud800injection", "chargePointModel": "OCPPScan"}]'
+            '{"chargePointVendor": "vendor\\ud800injection", "chargePointModel": "JoltProbe"}]'
         )
 
         accepted = []

@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from ocppscan.checks.base import CheckResult
-from ocppscan.report.json import render_json
-from ocppscan.report.markdown import render_markdown
-from ocppscan.report.html import render_html
+from joltprobe.checks.base import CheckResult
+from joltprobe.report.json import render_json
+from joltprobe.report.markdown import render_markdown
+from joltprobe.report.html import render_html
 
 
 def render_report(meta: dict[str, Any], results: list[CheckResult], output_path: str) -> None:

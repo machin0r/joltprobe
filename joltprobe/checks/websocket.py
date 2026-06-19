@@ -5,7 +5,7 @@ import asyncio
 import websockets
 import websockets.exceptions
 
-from ocppscan.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
+from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 
 class WebsocketNoSubprotocol(BaseCheck):

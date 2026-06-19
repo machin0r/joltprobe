@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ocppscan"
+name = "joltprobe"
 version = "0.1.0"
 description = "OCPP Security Assessment Tool"
 requires-python = ">=3.10"
@@ -22,12 +22,12 @@ frontend = [
 ]
 
 [project.scripts]
-ocppscan     = "ocppscan.cli:cli"
-ocppscan-web = "frontend.app:main"
+joltprobe     = "joltprobe.cli:cli"
+joltprobe-web = "frontend.app:main"
 
 [tool.setuptools.packages.find]
 where   = ["."]
-include = ["ocppscan*", "frontend*"]
+include = ["joltprobe*", "frontend*"]
 
 [tool.setuptools.package-data]
-ocppscan = ["payloads/**/*", "injection/payloads/**/*"]
+joltprobe = ["payloads/**/*", "injection/payloads/**/*"]

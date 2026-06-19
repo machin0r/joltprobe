@@ -182,10 +182,10 @@ class ScanSession:
 
     def _boot_payload(self) -> dict[str, Any]:
         if self.version == "1.6":
-            return {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+            return {"chargePointModel": "JoltProbe", "chargePointVendor": "JoltProbe"}
         return {
             "reason": "PowerUp",
-            "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"},
+            "chargingStation": {"model": "JoltProbe", "vendorName": "JoltProbe"},
         }
 
     async def setup(self) -> Optional[str]:

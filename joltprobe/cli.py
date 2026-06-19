@@ -11,11 +11,11 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 
-from ocppscan import __version__
-from ocppscan.checks import ALL_CHECKS, CATEGORIES, CHECK_BY_ID
-from ocppscan.checks.base import CheckResult, Severity, Status
-from ocppscan.connection import ScanConfig, ScanSession
-from ocppscan.report.renderer import render_report
+from joltprobe import __version__
+from joltprobe.checks import ALL_CHECKS, CATEGORIES, CHECK_BY_ID
+from joltprobe.checks.base import CheckResult, Severity, Status
+from joltprobe.connection import ScanConfig, ScanSession
+from joltprobe.report.renderer import render_report
 
 console = Console()
 
@@ -45,9 +45,9 @@ _STATUS_ICON = {
 
 
 @click.group()
-@click.version_option(__version__, prog_name="ocppscan")
+@click.version_option(__version__, prog_name="joltprobe")
 def cli() -> None:
-    """OCPPScan — OCPP security assessment tool."""
+    """JoltProbe — OCPP security assessment tool."""
 
 
 # ──────────────────────────────────────────────────────────────
@@ -122,12 +122,12 @@ async def _run_scan(
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     console.print(Panel.fit(
-        f"[bold]OCPPScan v{__version__}[/bold]\n"
+        f"[bold]JoltProbe v{__version__}[/bold]\n"
         f"Target:    [cyan]{target}[/cyan]\n"
         f"Charger:   [cyan]{charger_id}[/cyan]\n"
         f"Protocol:  OCPP {ocpp_version}\n"
         f"Timestamp: {timestamp}",
-        title="[bold blue]OCPPScan[/bold blue]",
+        title="[bold blue]JoltProbe[/bold blue]",
         border_style="blue",
     ))
 
@@ -353,7 +353,7 @@ def run_check(
     """Run a single check by ID."""
     if check_id not in CHECK_BY_ID:
         console.print(f"[red]Unknown check ID: '{check_id}'[/red]")
-        console.print(f"Run [cyan]ocppscan checks list[/cyan] to see available checks.")
+        console.print(f"Run [cyan]joltprobe checks list[/cyan] to see available checks.")
         sys.exit(1)
 
     asyncio.run(
