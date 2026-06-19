@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import uuid
 from pathlib import Path
 from typing import Optional
 
+import websockets
 import yaml
 
 from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
@@ -47,8 +49,6 @@ class AuthNoBasicAuth(BaseCheck):
     pass_ = "The server rejected the unauthenticated connection (HTTP 401/403)."
 
     async def run(self) -> CheckResult:
-        import websockets
-
         url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
 
@@ -87,8 +87,6 @@ class AuthDefaultCredentials(BaseCheck):
     pass_ = "None of the default credentials were accepted."
 
     async def run(self) -> CheckResult:
-        import websockets
-
         creds = _load_credentials(self.session.config.credential_list)
         if not creds:
             return self._error("No credential list available")
@@ -99,7 +97,6 @@ class AuthDefaultCredentials(BaseCheck):
         for pair in creds:
             username = pair.get("username", "")
             password = pair.get("password", "")
-            import base64
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
             url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
             try:

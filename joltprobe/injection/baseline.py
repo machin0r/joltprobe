@@ -4,7 +4,7 @@ import asyncio
 import statistics
 import time
 
-from joltprobe.connection import OCPPConnection
+from joltprobe.connection import OCPPConnection, ScanSession
 
 _BASELINE_COUNT = 3
 _BASELINE_INTERVAL = 0.05
@@ -26,12 +26,10 @@ async def establish_baseline(conn: OCPPConnection, count: int = _BASELINE_COUNT)
 
 
 async def establish_connection_baseline(
-    session: "ScanSession",  # type: ignore[name-defined]
+    session: ScanSession,
     count: int = _BASELINE_COUNT,
 ) -> float:
     """Time connection attempts with the configured charger_id, return median in ms."""
-    from joltprobe.connection import ScanSession  # noqa: F401 — runtime import
-
     times: list[float] = []
     for _ in range(count):
         start = time.monotonic()

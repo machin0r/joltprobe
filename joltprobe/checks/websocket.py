@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 
 import websockets
 import websockets.exceptions
@@ -19,8 +20,6 @@ class WebsocketNoSubprotocol(BaseCheck):
     pass_ = "The server rejected connections without the required subprotocol header."
 
     async def run(self) -> CheckResult:
-        import base64
-
         url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
         connect_kwargs: dict = {"open_timeout": self.session.timeout}
         if self.session.config.username:
@@ -76,8 +75,6 @@ class WebsocketWrongSubprotocol(BaseCheck):
     pass_ = "The server rejected the connection with the wrong subprotocol."
 
     async def run(self) -> CheckResult:
-        import base64
-
         url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
         connect_kwargs: dict = {"open_timeout": self.session.timeout}
         if self.session.config.username:

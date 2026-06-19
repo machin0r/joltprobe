@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+
+import websockets
 
 from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
@@ -212,9 +215,6 @@ class MessageInjectionChargerId(BaseCheck):
     pass_ = "The server rejected or safely handled the injection payload in the charger ID path."
 
     async def run(self) -> CheckResult:
-        import base64
-        import websockets
-
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
         connect_kwargs: dict = {"open_timeout": self.session.timeout}
         if self.session.config.username:
@@ -442,9 +442,6 @@ class MessageUnicodeNullBytes(BaseCheck):
     pass_ = "The server rejected or safely handled dangerous Unicode and null-byte content."
 
     async def run(self) -> CheckResult:
-        import base64
-        import websockets as _ws
-
         url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
         connect_kwargs: dict = {"open_timeout": self.session.timeout}
@@ -479,7 +476,7 @@ class MessageUnicodeNullBytes(BaseCheck):
         for case_name, raw_msg, injection_str in all_cases:
             try:
                 ws = await asyncio.wait_for(
-                    _ws.connect(url, subprotocols=[subprotocol], **connect_kwargs),
+                    websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
                     timeout=self.session.timeout,
                 )
                 try:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from joltprobe.checks.base import CheckResult, Status
@@ -77,7 +78,6 @@ def render_markdown(meta: dict[str, Any], results: list[CheckResult]) -> str:
             if r.evidence:
                 lines.append("**Evidence:**")
                 lines.append("```json")
-                import json
                 lines.append(json.dumps(r.evidence, indent=2))
                 lines.append("```")
                 lines.append("")

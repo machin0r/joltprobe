@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from datetime import datetime, timezone
 from typing import Optional
@@ -408,14 +409,13 @@ async def _run_single_check(
     finally:
         await session.close()
 
-    import json as _json
     console.print()
     console.print(Panel.fit(
         f"[bold]{result.name}[/bold]  ([dim]{result.id}[/dim])\n\n"
         f"Severity:  [{_SEV_STYLE[result.severity]}]{result.severity.value}[/{_SEV_STYLE[result.severity]}]\n"
         f"Status:    [{_STATUS_STYLE[result.status]}]{result.status.value}[/{_STATUS_STYLE[result.status]}]\n\n"
         f"[bold]Description:[/bold] {result.description}\n\n"
-        + (f"[bold]Evidence:[/bold]\n{_json.dumps(result.evidence, indent=2)}\n\n" if result.evidence else "")
+        + (f"[bold]Evidence:[/bold]\n{json.dumps(result.evidence, indent=2)}\n\n" if result.evidence else "")
         + (f"[bold]Remediation:[/bold] {result.remediation}\n\n" if result.remediation else "")
         + (f"[bold]References:[/bold] {', '.join(result.references)}" if result.references else ""),
         title=f"[bold blue]Check Result[/bold blue]",

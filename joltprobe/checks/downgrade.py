@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+
+import websockets
+
 from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
 
@@ -23,9 +27,6 @@ class DowngradeProfileReconnect(BaseCheck):
 
         # After an SP2 session, try reconnecting via ws:// (SP0)
         plain_url = self.session.target.replace("wss://", "ws://").replace("https://", "http://")
-
-        import websockets
-
         url = f"{plain_url.rstrip('/')}/{self.session.charger_id}"
         try:
             ws = await asyncio.wait_for(
@@ -136,11 +137,7 @@ class DowngradeStaleProfile(BaseCheck):
             )
 
         # After establishing an SP2 (TLS) session, verify that SP1 Basic Auth still works on ws://
-        import websockets
-
         plain_url = self.session.target.replace("wss://", "ws://").replace("https://", "http://")
-        import base64
-
         token = base64.b64encode(
             f"{self.session.config.username}:{self.session.config.password or ''}".encode()
         ).decode()

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import time
 import uuid
 from typing import Any
+
+import websockets
 
 from joltprobe.checks.base import BaseCheck, CheckResult, ConnectionMode, Severity
 
@@ -22,9 +25,6 @@ class DosConnectionFlood(BaseCheck):
     _TARGET_CONNECTIONS = 50
 
     async def run(self) -> CheckResult:
-        import base64
-        import websockets
-
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
         connect_kwargs: dict[str, Any] = {"open_timeout": self.session.timeout}
         if self.session.config.username:
@@ -101,7 +101,7 @@ class DosMessageRate(BaseCheck):
             msg_id = str(uuid.uuid4())[:8]
             message = json.dumps([2, msg_id, "Heartbeat", {}])
             try:
-                await conn._ws.send(message)
+                await conn.send_raw(message)
                 sent += 1
             except Exception as e:
                 rejected_at = i
@@ -141,9 +141,6 @@ class DosLargePayload(BaseCheck):
     _PAYLOAD_SIZE = 1_000_000  # 1 MB
 
     async def run(self) -> CheckResult:
-        import base64
-        import websockets
-
         url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
         connect_kwargs: dict[str, Any] = {"open_timeout": self.session.timeout}
@@ -155,14 +152,13 @@ class DosLargePayload(BaseCheck):
 
         msg_id = str(uuid.uuid4())[:8]
         large_value = "X" * self._PAYLOAD_SIZE
-        if self.session.version == "1.6":
-            payload_obj: dict = {"chargePointModel": large_value[:1000], "chargePointVendor": large_value[:1000]}
-            action = "BootNotification"
-        else:
-            payload_obj = {"reason": "PowerUp", "chargingStation": {"model": large_value[:1000], "vendorName": "JoltProbe"}}
-            action = "BootNotification"
-
-        raw_msg = json.dumps([2, msg_id, action, payload_obj])
+        # DataTransfer.data has no length restriction in the OCPP spec, so this
+        # reliably produces a ~1 MB message regardless of protocol version.
+        raw_msg = json.dumps([2, msg_id, "DataTransfer", {
+            "vendorId": "JoltProbe",
+            "messageId": "probe",
+            "data": large_value,
+        }])
         actual_size = len(raw_msg.encode())
 
         try:
