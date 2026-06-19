@@ -214,62 +214,145 @@ class SessionStartWithoutAuth(BaseCheck):
 
 class SessionConnectorStatusSpoof(BaseCheck):
     id = "session.connector-status-spoof"
-    name = "Connector status spoofing"
+    name = "Connector status spoofing causes state confusion"
     severity = Severity.HIGH
-    connection_mode = ConnectionMode.SHARED
+    connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
-    what = "Sends StatusNotification with a manipulated connector state (e.g. Available while a transaction is running)."
-    fail = "The server accepted the spoofed status. Active sessions can be hidden or connectors can be made to appear unavailable."
-    pass_ = "The server ignored or rejected the inconsistent status notification."
+    what = (
+        "Starts a transaction on connector 1, sends StatusNotification claiming Available "
+        "(spoofing the connector state), then attempts a second StartTransaction on the same "
+        "connector. Tests whether the spoofed status causes the CSMS to allow a concurrent session."
+    )
+    fail = (
+        "CSMS accepted a second StartTransaction on connector 1 after the charger reported "
+        "Available during an active transaction — the spoofed status caused state confusion, "
+        "enabling double-billing or concurrent session corruption."
+    )
+    pass_ = "CSMS correctly rejected the second transaction despite the spoofed Available status."
 
     async def run(self) -> CheckResult:
         try:
-            conn = await self.session.get_shared_connection()
+            conn = await self.session.new_connection(send_boot=True)
         except Exception as e:
-            return self._error(f"Could not obtain shared connection: {e}")
+            return self._error(f"Could not connect: {e}")
 
-        spoof_statuses = ["Faulted", "Unavailable"]
-        accepted = []
+        # 1. Start a transaction on connector 1.
+        if self.session.version == "1.6":
+            start1: dict = {
+                "connectorId": 1,
+                "idTag": "JOLTPROBE-A",
+                "meterStart": 0,
+                "timestamp": _ts(),
+            }
+            start2: dict = {
+                "connectorId": 1,
+                "idTag": "JOLTPROBE-B",
+                "meterStart": 0,
+                "timestamp": _ts(),
+            }
+            start_action = "StartTransaction"
+        else:
+            start1 = {
+                "eventType": "Started",
+                "timestamp": _ts(),
+                "seqNo": 1,
+                "transactionInfo": {"transactionId": "joltprobe-spoof-1"},
+                "idToken": {"idToken": "JOLTPROBE-A", "type": "ISO14443"},
+                "evse": {"id": 1, "connectorId": 1},
+            }
+            start2 = {
+                "eventType": "Started",
+                "timestamp": _ts(),
+                "seqNo": 2,
+                "transactionInfo": {"transactionId": "joltprobe-spoof-2"},
+                "idToken": {"idToken": "JOLTPROBE-B", "type": "ISO14443"},
+                "evse": {"id": 1, "connectorId": 1},
+            }
+            start_action = "TransactionEvent"
 
-        for status in spoof_statuses:
-            if self.session.version == "1.6":
-                payload: dict = {
-                    "connectorId": 1,
-                    "errorCode": "NoError",
-                    "status": status,
-                    "timestamp": _ts(),
-                }
-            else:
-                payload = {
-                    "timestamp": _ts(),
-                    "connectorStatus": status,
-                    "evseId": 1,
-                    "connectorId": 1,
-                }
-            try:
-                resp = await conn.send_call("StatusNotification", payload)
-                if resp[0] == 3:
-                    accepted.append(status)
-            except asyncio.TimeoutError:
-                pass
-            except Exception:
-                pass
+        first_txn_id = None
+        try:
+            resp1 = await conn.send_call(start_action, start1)
+            if resp1[0] == 3:
+                first_txn_id = (resp1[2] if len(resp1) > 2 else {}).get("transactionId")
+        except asyncio.TimeoutError:
+            await conn.close()
+            return self._inconclusive("No response to first StartTransaction (timeout)")
+        except Exception as e:
+            await conn.close()
+            return self._error(str(e))
 
-        if accepted:
+        if first_txn_id is None and self.session.version == "1.6":
+            await conn.close()
+            return self._inconclusive(
+                "First StartTransaction did not return a transaction ID — "
+                "CSMS may have rejected it; cannot proceed with spoof test",
+                evidence={"connector_id": 1},
+            )
+
+        # 2. Spoof Available status while the transaction is active.
+        if self.session.version == "1.6":
+            spoof_payload: dict = {
+                "connectorId": 1,
+                "errorCode": "NoError",
+                "status": "Available",
+                "timestamp": _ts(),
+            }
+        else:
+            spoof_payload = {
+                "timestamp": _ts(),
+                "connectorStatus": "Available",
+                "evseId": 1,
+                "connectorId": 1,
+            }
+
+        try:
+            await conn.send_call("StatusNotification", spoof_payload)
+        except (asyncio.TimeoutError, Exception):
+            pass
+
+        # 3. Attempt a second transaction on the same connector.
+        second_txn_id = None
+        second_status = None
+        try:
+            resp2 = await conn.send_call(start_action, start2)
+            if resp2[0] == 3:
+                p2 = resp2[2] if len(resp2) > 2 else {}
+                second_txn_id = p2.get("transactionId")
+                second_status = p2.get("idTagInfo", {}).get("status") or p2.get("idTokenInfo", {}).get("status")
+        except (asyncio.TimeoutError, Exception):
+            pass
+
+        await conn.close()
+
+        second_accepted = (second_txn_id is not None) or (second_status == "Accepted")
+
+        if second_accepted:
             return self._fail(
-                f"CSMS accepted StatusNotification with spoofed connector state(s): {accepted}. "
-                "A charger can mark itself or other connectors out of service without a physical event.",
-                evidence={"accepted_statuses": accepted, "connector_id": 1},
+                "CSMS accepted a second StartTransaction on connector 1 after a spoofed "
+                "Available StatusNotification — the spoof confused the CSMS state machine, "
+                "enabling concurrent sessions and potential double-billing.",
+                evidence={
+                    "connector_id": 1,
+                    "first_transaction_id": first_txn_id,
+                    "spoof_status_sent": "Available",
+                    "second_transaction_id": second_txn_id,
+                    "second_idtag_status": second_status,
+                },
                 remediation=(
-                    "Validate StatusNotification state transitions server-side. "
-                    "Log and alert on unexpected transitions (e.g. Faulted without a prior error event). "
-                    "Do not blindly reflect charger-reported status to operators without validation."
+                    "Track active transaction state per connector independently of "
+                    "charger-reported StatusNotification. Reject StartTransaction on a "
+                    "connector with an active transaction regardless of the last reported status."
                 ),
                 references=["OCPP 1.6 Section 5.14", "OCPP 2.0.1 Section 7.3"],
             )
         return self._pass(
-            "CSMS did not accept spoofed StatusNotification states without error",
-            evidence={"tested_statuses": spoof_statuses},
+            "CSMS correctly rejected the second transaction despite the spoofed Available status",
+            evidence={
+                "connector_id": 1,
+                "first_transaction_id": first_txn_id,
+                "spoof_status_sent": "Available",
+            },
         )
 
 
