@@ -20,6 +20,9 @@ frontend = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.29",
 ]
+dev = [
+    "pytest>=8.0",
+]
 
 [project.scripts]
 joltprobe     = "joltprobe.cli:cli"
@@ -31,3 +34,8 @@ include = ["joltprobe*", "frontend*"]
 
 [tool.setuptools.package-data]
 joltprobe = ["payloads/**/*", "injection/payloads/**/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
