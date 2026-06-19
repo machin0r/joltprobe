@@ -212,16 +212,24 @@ class MessageInjectionChargerId(BaseCheck):
     pass_ = "The server rejected or safely handled the injection payload in the charger ID path."
 
     async def run(self) -> CheckResult:
+        import base64
         import websockets
 
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
+        connect_kwargs: dict = {"open_timeout": self.session.timeout}
+        if self.session.config.username:
+            token = base64.b64encode(
+                f"{self.session.config.username}:{self.session.config.password or ''}".encode()
+            ).decode()
+            connect_kwargs["additional_headers"] = {"Authorization": f"Basic {token}"}
+
         accepted: list[str] = []
 
         for charger_id in _INJECTION_CHARGER_IDS:
             url = f"{self.session.target.rstrip('/')}/{charger_id}"
             try:
                 ws = await asyncio.wait_for(
-                    websockets.connect(url, subprotocols=[subprotocol], open_timeout=self.session.timeout),
+                    websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
                     timeout=self.session.timeout,
                 )
                 await ws.close()
@@ -512,6 +520,14 @@ class MessageUnicodeNullBytes(BaseCheck):
                 ),
                 references=["CWE-116", "CWE-20", "OCPP 1.6 Appendix 3"],
             )
+
+        connection_errors = [e for e in evidence_list if "connection_error" in e]
+        if len(connection_errors) == len(all_cases):
+            first_err = connection_errors[0].get("connection_error", "")
+            return self._error(
+                f"Could not connect for any injection case — check credentials or target: {first_err}"
+            )
+
         return self._pass(
             "CSMS rejected all Unicode and null byte injection payloads",
             evidence={"details": evidence_list},

@@ -85,6 +85,49 @@ def check_reflection(response: Any, expected: str) -> bool:
     return expected in text
 
 
+_AUTH_STATUSES = frozenset({"Rejected", "Invalid", "NotSupported", "NotImplemented"})
+
+
+def _is_auth_response(response: Any) -> bool:
+    """Return True if the response contains an auth decision status (not template evaluation)."""
+    text = _response_text(response)
+    return any(status in text for status in _AUTH_STATUSES)
+
+
+def check_template_reflection(
+    response: Any,
+    expected: str,
+    baseline: Any,
+    raw_payload: str,
+) -> tuple[bool, Optional[str]]:
+    """Return (is_finding, pass_reason) for a template injection reflection check.
+
+    All four conditions must hold for a finding:
+    - response is not a CALLERROR
+    - response does not indicate an auth decision (Rejected/Invalid/etc.)
+    - expected evaluated string appears in response but not in clean baseline
+    - raw payload string is not simply echoed back verbatim
+    """
+    if isinstance(response, list) and len(response) > 0 and response[0] == 4:
+        return False, None
+
+    if _is_auth_response(response):
+        return False, "authorisation_response"
+
+    text = _response_text(response)
+    if expected not in text:
+        return False, None
+
+    baseline_text = _response_text(baseline) if baseline is not None else ""
+    if expected in baseline_text:
+        return False, None
+
+    if raw_payload in text:
+        return False, None
+
+    return True, None
+
+
 def responses_differ(resp_a: Any, resp_b: Any) -> bool:
     """Return True if two OCPP response payloads are observably different.
 

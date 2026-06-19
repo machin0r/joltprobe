@@ -22,9 +22,17 @@ class DosConnectionFlood(BaseCheck):
     _TARGET_CONNECTIONS = 50
 
     async def run(self) -> CheckResult:
+        import base64
         import websockets
 
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
+        connect_kwargs: dict[str, Any] = {"open_timeout": self.session.timeout}
+        if self.session.config.username:
+            token = base64.b64encode(
+                f"{self.session.config.username}:{self.session.config.password or ''}".encode()
+            ).decode()
+            connect_kwargs["additional_headers"] = {"Authorization": f"Basic {token}"}
+
         opened: list[Any] = []
         rejected_at: int | None = None
         errors: list[str] = []
@@ -34,7 +42,7 @@ class DosConnectionFlood(BaseCheck):
             url = f"{self.session.target.rstrip('/')}/{charger_id}"
             try:
                 ws = await asyncio.wait_for(
-                    websockets.connect(url, subprotocols=[subprotocol], open_timeout=self.session.timeout),
+                    websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
                     timeout=self.session.timeout,
                 )
                 opened.append(ws)
@@ -133,10 +141,17 @@ class DosLargePayload(BaseCheck):
     _PAYLOAD_SIZE = 1_000_000  # 1 MB
 
     async def run(self) -> CheckResult:
-        try:
-            conn = await self.session.new_connection(send_boot=True)
-        except Exception as e:
-            return self._error(f"Could not connect: {e}")
+        import base64
+        import websockets
+
+        url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
+        subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
+        connect_kwargs: dict[str, Any] = {"open_timeout": self.session.timeout}
+        if self.session.config.username:
+            token = base64.b64encode(
+                f"{self.session.config.username}:{self.session.config.password or ''}".encode()
+            ).decode()
+            connect_kwargs["additional_headers"] = {"Authorization": f"Basic {token}"}
 
         msg_id = str(uuid.uuid4())[:8]
         large_value = "X" * self._PAYLOAD_SIZE
@@ -151,11 +166,18 @@ class DosLargePayload(BaseCheck):
         actual_size = len(raw_msg.encode())
 
         try:
-            await conn._ws.send(raw_msg)
+            ws = await asyncio.wait_for(
+                websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
+                timeout=self.session.timeout,
+            )
+        except Exception as e:
+            return self._error(f"Could not connect: {e}")
+
+        try:
+            await ws.send(raw_msg)
             try:
-                raw_resp = await asyncio.wait_for(conn._ws.recv(), timeout=self.session.timeout)
+                raw_resp = await asyncio.wait_for(ws.recv(), timeout=self.session.timeout)
                 data = json.loads(raw_resp)
-                await conn.close()
                 if isinstance(data, list) and data[0] == 4:
                     return self._pass(
                         f"CSMS returned CALLERROR for {actual_size / 1024:.0f} KB payload",
@@ -171,16 +193,19 @@ class DosLargePayload(BaseCheck):
                     references=["OCPP Security Whitepaper", "CWE-400"],
                 )
             except asyncio.TimeoutError:
-                await conn.close()
                 return self._inconclusive(
                     f"No response to {actual_size / 1024:.0f} KB payload (timeout)",
                     evidence={"payload_size_bytes": actual_size},
                 )
         except Exception as e:
-            await conn.close()
             if "too long" in str(e).lower() or "size" in str(e).lower() or "1009" in str(e):
                 return self._pass(
                     f"CSMS rejected the {actual_size / 1024:.0f} KB payload (connection closed)",
                     evidence={"rejection": str(e)[:200]},
                 )
             return self._error(str(e))
+        finally:
+            try:
+                await ws.close()
+            except Exception:
+                pass

@@ -34,8 +34,6 @@ class WebsocketNoSubprotocol(BaseCheck):
                 websockets.connect(url, **connect_kwargs),
                 timeout=self.session.timeout,
             )
-            response_headers = {k: v for k, v in ws.response_headers.items()
-                                if "websocket" in k.lower() or "upgrade" in k.lower()}
             await ws.close()
             return self._fail(
                 "CSMS accepted a WebSocket upgrade with no Sec-WebSocket-Protocol header (HTTP 101 returned)",
@@ -43,7 +41,6 @@ class WebsocketNoSubprotocol(BaseCheck):
                     "url": url,
                     "sec_websocket_protocol_sent": None,
                     "http_status": 101,
-                    "response_headers": response_headers,
                 },
                 remediation=(
                     "Per RFC 6455 §4.2.2, if the server requires a subprotocol and none is offered by the client, "

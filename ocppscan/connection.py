@@ -218,8 +218,11 @@ class ScanSession:
 
     async def get_shared_connection(self) -> OCPPConnection:
         if self._shared is None or self._shared._closed:
-            await self.setup()
-        assert self._shared is not None
+            err = await self.setup()
+            if err:
+                raise RuntimeError(err)
+        if self._shared is None:
+            raise RuntimeError(f"Could not connect to {self.target}")
         return self._shared
 
     async def new_connection(

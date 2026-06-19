@@ -16,7 +16,7 @@ from ocppscan.injection.baseline import establish_baseline, establish_connection
 from ocppscan.injection.detector import (
     check_error_leak,
     check_error_strings,
-    check_reflection,
+    check_template_reflection,
     is_timing_anomaly,
     responses_differ,
 )
@@ -88,11 +88,10 @@ class _BaseFieldCheck(BaseCheck):
         tested = 0
 
         clean_resp: Optional[Any] = None
-        if any(p.get("method") == "nosql" for p in payloads):
-            try:
-                clean_resp = await self._clean_probe(conn)
-            except Exception:
-                pass
+        try:
+            clean_resp = await self._clean_probe(conn)
+        except Exception:
+            pass
 
         for entry in payloads:
             pid = entry["id"]
@@ -123,7 +122,7 @@ class _BaseFieldCheck(BaseCheck):
                     findings.append(finding)
                 continue
 
-            finding = await self._test_single(conn, entry, baseline_ms)
+            finding = await self._test_single(conn, entry, baseline_ms, clean_resp)
             tested += 1
             if finding:
                 if finding.get("status") == "INCONCLUSIVE":
@@ -169,6 +168,7 @@ class _BaseFieldCheck(BaseCheck):
         conn: OCPPConnection,
         entry: dict,
         baseline_ms: float,
+        baseline_resp: Any = None,
     ) -> Optional[dict]:
         payload_str = entry["payload"]
         signal = entry.get("signal", "")
@@ -232,17 +232,21 @@ class _BaseFieldCheck(BaseCheck):
             return None
 
         if method == "template" and "expected_reflection" in entry:
-            if resp is not None and check_reflection(resp, entry["expected_reflection"]):
-                return {
-                    "status": "FAIL",
-                    "payload_id": entry["id"],
-                    "method": method,
-                    "signal": "reflection",
-                    "payload": payload_str,
-                    "expected_reflection": entry["expected_reflection"],
-                    "response": str(resp)[:300],
-                    "elapsed_ms": round(elapsed, 1),
-                }
+            if resp is not None:
+                found, pass_reason = check_template_reflection(
+                    resp, entry["expected_reflection"], baseline_resp, payload_str
+                )
+                if found:
+                    return {
+                        "status": "FAIL",
+                        "payload_id": entry["id"],
+                        "method": method,
+                        "signal": "reflection",
+                        "payload": payload_str,
+                        "expected_reflection": entry["expected_reflection"],
+                        "response": str(resp)[:300],
+                        "elapsed_ms": round(elapsed, 1),
+                    }
 
         # Log injection is unconfirmable remotely — we can send the payload but
         # cannot read the server log to verify it landed unescaped. Connection
@@ -360,6 +364,28 @@ class InjectionChargeBoxId(BaseCheck):
     async def run(self) -> CheckResult:
         baseline_ms = await establish_connection_baseline(self.session)
 
+        template_baseline_resp: Any = None
+        try:
+            _conn = await self.session.new_connection(
+                charger_id=self.session.charger_id, send_boot=False
+            )
+            try:
+                template_baseline_resp = await _conn.send_call(
+                    "BootNotification",
+                    {"chargePointModel": "OCPPScan", "chargePointVendor": "OCPPScan"}
+                    if self.session.version == "1.6"
+                    else {
+                        "reason": "PowerUp",
+                        "chargingStation": {"model": "OCPPScan", "vendorName": "OCPPScan"},
+                    },
+                )
+            except Exception:
+                pass
+            finally:
+                await _conn.close()
+        except Exception:
+            pass
+
         payloads = _load_payloads(["sql", "nosql", "log", "template", "xml"])
         by_id = {p["id"]: p for p in payloads}
         handled: set[str] = set()
@@ -387,7 +413,7 @@ class InjectionChargeBoxId(BaseCheck):
                         findings.append(finding)
                 continue
 
-            finding = await self._test_chargeboxid_payload(entry, baseline_ms)
+            finding = await self._test_chargeboxid_payload(entry, baseline_ms, template_baseline_resp)
             tested += 1
             if finding:
                 if finding.get("status") == "INCONCLUSIVE":
@@ -433,6 +459,7 @@ class InjectionChargeBoxId(BaseCheck):
         self,
         entry: dict,
         baseline_ms: float,
+        baseline_resp: Any = None,
     ) -> Optional[dict]:
         payload_str = entry["payload"]
         signal = entry.get("signal", "")
@@ -522,17 +549,21 @@ class InjectionChargeBoxId(BaseCheck):
             return None
 
         if method == "template" and "expected_reflection" in entry:
-            if error_source and check_reflection(error_source, entry["expected_reflection"]):
-                return {
-                    "status": "FAIL",
-                    "payload_id": entry["id"],
-                    "method": method,
-                    "signal": "reflection",
-                    "payload": payload_str,
-                    "expected_reflection": entry["expected_reflection"],
-                    "response": error_source[:300],
-                    "elapsed_ms": round(elapsed, 1),
-                }
+            if error_source:
+                found, _pass_reason = check_template_reflection(
+                    error_source, entry["expected_reflection"], baseline_resp, payload_str
+                )
+                if found:
+                    return {
+                        "status": "FAIL",
+                        "payload_id": entry["id"],
+                        "method": method,
+                        "signal": "reflection",
+                        "payload": payload_str,
+                        "expected_reflection": entry["expected_reflection"],
+                        "response": error_source[:300],
+                        "elapsed_ms": round(elapsed, 1),
+                    }
 
         if method in ("log", "crlf") and conn is not None and boot_resp is not None:
             if isinstance(boot_resp, list) and boot_resp[0] == 3:
