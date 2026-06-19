@@ -13,6 +13,9 @@ class TLSNoTLS(BaseCheck):
     severity = Severity.CRITICAL
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Attempts a raw plaintext WebSocket (ws://) connection. A secure CSMS should refuse it."
+    fail = "The server accepts unencrypted connections. All traffic — credentials, meter data, commands — is visible on the network. Disable the plaintext listener and enforce wss:// only."
+    pass_ = "The server did not accept a plaintext connection."
 
     async def run(self) -> CheckResult:
         parsed = urlparse(self.session.target)
@@ -85,6 +88,9 @@ class TLSSelfSigned(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Inspects the TLS certificate chain presented during the handshake."
+    fail = "The server uses a self-signed certificate. Clients cannot verify server identity, enabling man-in-the-middle attacks without detection."
+    pass_ = "The certificate chains to a recognised CA."
 
     async def run(self) -> CheckResult:
         if not self.session.is_tls():
@@ -135,6 +141,9 @@ class TLSVersion(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Negotiates TLS and checks whether deprecated versions (1.0, 1.1) are accepted."
+    fail = "TLS 1.0 or 1.1 accepted. These have known vulnerabilities (POODLE, BEAST). Restrict to TLS 1.2+."
+    pass_ = "Only TLS 1.2 or later is accepted."
 
     async def run(self) -> CheckResult:
         if not self.session.is_tls():
@@ -182,6 +191,9 @@ class TLSCiphers(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Enumerates cipher suites offered by the server during the TLS handshake."
+    fail = "Weak ciphers offered (RC4, NULL, export-grade, anonymous). Traffic may be decrypted offline."
+    pass_ = "Only strong, modern cipher suites are offered."
 
     _WEAK_CIPHERS = [
         "NULL-MD5",
@@ -241,6 +253,9 @@ class TLSNoClientCert(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Completes a TLS handshake without presenting a client certificate. OCPP Security Profile 3 requires mutual TLS."
+    fail = "The server does not require a client certificate. Any host on the network can impersonate a charger."
+    pass_ = "The server requires a client certificate (mutual TLS enforced)."
 
     async def run(self) -> CheckResult:
         sp = self.session.security_profile

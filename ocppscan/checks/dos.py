@@ -15,6 +15,9 @@ class DosConnectionFlood(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Rapidly opens many simultaneous WebSocket connections to the CSMS endpoint."
+    fail = "No connection limit was enforced. A flood attack could exhaust file descriptors or memory."
+    pass_ = "The server began refusing connections after a threshold, indicating a connection limit is enforced."
 
     _TARGET_CONNECTIONS = 50
 
@@ -69,6 +72,9 @@ class DosMessageRate(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends OCPP messages at a very high rate over a single connection."
+    fail = "No rate limiting detected. Sustained high-rate messaging could exhaust CPU or queue capacity."
+    pass_ = "The server disconnected or throttled the sender when the message rate was excessive."
 
     _BURST_COUNT = 100
     _BURST_WINDOW = 5.0
@@ -120,6 +126,9 @@ class DosLargePayload(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends a single very large OCPP message (multiple megabytes) to test payload size limits."
+    fail = "The oversized payload was accepted. Large messages could exhaust memory or processing capacity."
+    pass_ = "The server rejected or disconnected for the oversized message."
 
     _PAYLOAD_SIZE = 1_000_000  # 1 MB
 

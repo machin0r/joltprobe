@@ -21,6 +21,9 @@ class MessageMalformedJson(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends syntactically invalid JSON (truncated frames, mismatched brackets, invalid escapes) over the WebSocket."
+    fail = "The server did not close the connection or return a protocol error. Malformed input may cause undefined behaviour."
+    pass_ = "The server closed the connection or returned a CALLERROR for malformed JSON."
 
     async def run(self) -> CheckResult:
         try:
@@ -81,6 +84,9 @@ class MessageOversizedFields(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends OCPP messages with string fields many times larger than the specified OCPP maximums."
+    fail = "Oversized fields were accepted. Buffer overflows or database truncation issues may exist downstream."
+    pass_ = "The server rejected messages containing oversized field values."
 
     async def run(self) -> CheckResult:
         try:
@@ -141,6 +147,9 @@ class MessageWrongTypes(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends OCPP messages with incorrect field types (e.g. integer where a string is expected)."
+    fail = "Type-mismatched fields were accepted. Type coercion bugs or unexpected code paths may be triggered."
+    pass_ = "The server rejected messages with incorrect field types."
 
     async def run(self) -> CheckResult:
         try:
@@ -198,6 +207,9 @@ class MessageInjectionChargerId(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Uses a charger ID containing SQL, XSS, and path traversal payloads in the WebSocket URL path."
+    fail = "The server accepted the connection. The charger ID value likely reaches log storage or a database unsanitised."
+    pass_ = "The server rejected or safely handled the injection payload in the charger ID path."
 
     async def run(self) -> CheckResult:
         import websockets
@@ -240,6 +252,9 @@ class MessageUnknownAction(BaseCheck):
     severity = Severity.LOW
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends CALL frames with action names not defined in the OCPP specification."
+    fail = "The server did not return a CALLERROR. Unknown actions are silently accepted, masking protocol violations."
+    pass_ = "The server returned CALLERROR NotImplemented or NotSupported for the unknown action."
 
     async def run(self) -> CheckResult:
         try:
@@ -282,6 +297,9 @@ class MessageDeeplyNestedJson(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends a JSON payload with 200+ levels of recursive nesting inside an OCPP message."
+    fail = "The server processed the deeply nested payload. Recursive parsers may stack overflow under load."
+    pass_ = "The server rejected or disconnected for the pathologically nested payload."
 
     async def run(self) -> CheckResult:
         try:
@@ -337,6 +355,9 @@ class MessageTimestampSkew(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends OCPP messages with timestamps set years in the past or future."
+    fail = "Extreme timestamps were accepted without rejection. Billing records can be backdated or postdated."
+    pass_ = "The server rejected or normalised extreme timestamp values."
 
     def _meter_payload_with_ts(self, ts: str) -> dict:
         if self.session.version == "1.6":
@@ -408,6 +429,9 @@ class MessageUnicodeNullBytes(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Embeds null bytes (\\u0000), Unicode control characters, and bidirectional markers in string fields."
+    fail = "Payloads with null bytes or control characters were accepted. Log injection or database truncation may result."
+    pass_ = "The server rejected or safely handled dangerous Unicode and null-byte content."
 
     async def run(self) -> CheckResult:
         import base64
@@ -500,6 +524,9 @@ class MessageMissingRequiredFields(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends OCPP messages with required fields absent from the payload."
+    fail = "Messages with missing required fields were processed. Schema validation is not enforced server-side."
+    pass_ = "The server returned a CALLERROR for messages with missing required fields."
 
     async def run(self) -> CheckResult:
         try:

@@ -14,6 +14,9 @@ class WebsocketNoSubprotocol(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Connects without the Sec-WebSocket-Protocol header that declares the OCPP version."
+    fail = "The connection was accepted without a subprotocol. Protocol negotiation can be bypassed entirely."
+    pass_ = "The server rejected connections without the required subprotocol header."
 
     async def run(self) -> CheckResult:
         import base64
@@ -71,6 +74,9 @@ class WebsocketWrongSubprotocol(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
+    what = "Connects declaring an incorrect Sec-WebSocket-Protocol value."
+    fail = "The mismatched subprotocol was accepted. Clients can misrepresent their protocol version."
+    pass_ = "The server rejected the connection with the wrong subprotocol."
 
     async def run(self) -> CheckResult:
         import base64

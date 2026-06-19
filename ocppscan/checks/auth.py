@@ -42,6 +42,9 @@ class AuthNoBasicAuth(BaseCheck):
     severity = Severity.CRITICAL
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Opens a WebSocket connection without sending any Authorization header."
+    fail = "The server accepted the connection. Any device can connect as a charger without credentials."
+    pass_ = "The server rejected the unauthenticated connection (HTTP 401/403)."
 
     async def run(self) -> CheckResult:
         import websockets
@@ -79,6 +82,9 @@ class AuthDefaultCredentials(BaseCheck):
     severity = Severity.CRITICAL
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Tries common default username/password pairs used by OCPP implementations and charger vendors."
+    fail = "A default credential pair was accepted. An attacker can connect as a legitimate charger."
+    pass_ = "None of the default credentials were accepted."
 
     async def run(self) -> CheckResult:
         import websockets
@@ -139,6 +145,9 @@ class AuthArbitraryChargerId(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Connects using a charger ID that should not be registered in the CSMS."
+    fail = "The server accepted a connection from an unregistered charger ID. Rogue devices can inject transactions and meter data."
+    pass_ = "The server rejected the unregistered charger ID."
 
     async def run(self) -> CheckResult:
         rogue_id = f"ROGUE-{uuid.uuid4().hex[:8].upper()}"
@@ -194,6 +203,9 @@ class AuthDuplicateIdentity(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DUAL
     applies_to = ["1.6", "2.0.1"]
+    what = "Opens a second simultaneous WebSocket connection with the same charger ID as an active session."
+    fail = "Both connections were accepted. An attacker can hijack or shadow an active charger session."
+    pass_ = "The server rejected or disconnected the duplicate connection."
 
     async def run(self) -> CheckResult:
         charger_id = self.session.charger_id
@@ -262,6 +274,9 @@ class AuthNoBootRequired(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends OCPP operational messages (e.g. Authorize) before completing BootNotification."
+    fail = "The server processed messages before boot. Operational state can be manipulated before the session is fully established."
+    pass_ = "The server rejects or ignores messages sent before BootNotification completes."
 
     async def run(self) -> CheckResult:
         try:
@@ -302,6 +317,9 @@ class AuthIdTagEnumeration(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Probes a set of idTag values via Authorize and analyses response content and timing."
+    fail = "Responses differ for valid vs invalid idTags, allowing an attacker to enumerate valid RFID tags and clone them."
+    pass_ = "No distinguishable difference in responses across idTag values."
 
     async def run(self) -> CheckResult:
         probe_tags = _load_probe_idtags()

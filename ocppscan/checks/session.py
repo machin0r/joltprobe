@@ -16,6 +16,9 @@ class SessionMeterWithoutTransaction(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends MeterValues referencing a transaction ID that does not exist."
+    fail = "The server accepted the meter readings. Fraudulent billing entries can be injected without a real transaction."
+    pass_ = "The server rejected meter values for an unknown transaction ID."
 
     async def run(self) -> CheckResult:
         try:
@@ -83,6 +86,9 @@ class SessionStopForeignTransaction(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends StopTransaction using a transaction ID from a different charger's active session."
+    fail = "The server allowed the cross-session stop. Any charger can terminate another charger's session."
+    pass_ = "The server rejected the StopTransaction for a foreign transaction ID."
 
     async def run(self) -> CheckResult:
         try:
@@ -149,6 +155,9 @@ class SessionStartWithoutAuth(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6"]
+    what = "Attempts StartTransaction without a prior successful Authorize exchange."
+    fail = "The server permitted the transaction to start without authorisation. Charging begins without a valid RFID or app token."
+    pass_ = "The server requires authorisation before accepting StartTransaction."
 
     async def run(self) -> CheckResult:
         if self.session.version != "1.6":
@@ -209,6 +218,9 @@ class SessionConnectorStatusSpoof(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends StatusNotification with a manipulated connector state (e.g. Available while a transaction is running)."
+    fail = "The server accepted the spoofed status. Active sessions can be hidden or connectors can be made to appear unavailable."
+    pass_ = "The server ignored or rejected the inconsistent status notification."
 
     async def run(self) -> CheckResult:
         try:
@@ -267,6 +279,9 @@ class SessionTransactionIdEnumeration(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Probes sequential transaction IDs via StopTransaction to infer active or historical sessions."
+    fail = "The server responds differently to valid vs invalid transaction IDs, enabling enumeration of charging history."
+    pass_ = "Consistent responses regardless of transaction ID validity."
 
     async def run(self) -> CheckResult:
         try:
@@ -336,6 +351,9 @@ class SessionConcurrentTransactions(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Attempts to start two transactions simultaneously on the same connector."
+    fail = "The server accepted both. Double-billing or meter data corruption may occur."
+    pass_ = "The server rejected the second concurrent transaction on the same connector."
 
     async def run(self) -> CheckResult:
         try:
@@ -440,6 +458,9 @@ class SessionLocalAuthListAbuse(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends an unsolicited SendLocalList to add entries to the server's authorisation cache."
+    fail = "The server accepted the list modification. An attacker can whitelist arbitrary idTags for offline charging."
+    pass_ = "The server rejected the unsolicited SendLocalList."
 
     async def run(self) -> CheckResult:
         try:

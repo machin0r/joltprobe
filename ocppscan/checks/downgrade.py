@@ -10,6 +10,9 @@ class DowngradeProfileReconnect(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["2.0.1"]
+    what = "Reconnects to the server using a lower security profile than previously negotiated."
+    fail = "The downgraded connection was accepted. An attacker can force a reconnect to strip security controls."
+    pass_ = "The server rejected the lower-profile reconnection."
 
     async def run(self) -> CheckResult:
         if self.session.version != "2.0.1":
@@ -55,6 +58,9 @@ class DowngradeChangeConfig(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.SHARED
     applies_to = ["2.0.1"]
+    what = "Sends ChangeConfiguration to lower the CSMS security profile setting."
+    fail = "The server accepted the change. Security profile can be downgraded remotely without physical access."
+    pass_ = "The server rejected the security-downgrading configuration change."
 
     async def run(self) -> CheckResult:
         if self.session.version != "2.0.1":
@@ -116,6 +122,9 @@ class DowngradeStaleProfile(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["2.0.1"]
+    what = "After upgrading to a higher security profile, checks whether old lower-profile credentials still authenticate."
+    fail = "Old credentials remain valid after a profile upgrade. Compromised lower-profile credentials persist."
+    pass_ = "Old credentials were invalidated following the security profile upgrade."
 
     async def run(self) -> CheckResult:
         if self.session.version != "2.0.1":

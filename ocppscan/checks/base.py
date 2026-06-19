@@ -61,6 +61,9 @@ class BaseCheck:
     severity: Severity = Severity.INFO
     connection_mode: ConnectionMode = ConnectionMode.SHARED
     applies_to: list[str] = ["1.6", "2.0.1"]
+    what: str = ""
+    fail: str = ""
+    pass_: str = ""
 
     def __init__(self, session: "ScanSession") -> None:
         self.session = session

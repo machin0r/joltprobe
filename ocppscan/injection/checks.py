@@ -353,6 +353,9 @@ class InjectionChargeBoxId(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
+    what = "Connects with a charger ID containing SQL, NoSQL, log, and template injection payloads in the URL path."
+    fail = "Anomalous server behaviour detected. The charger ID likely reaches an injectable context (database, log, template engine)."
+    pass_ = "No anomalous behaviour detected. The charger ID appears to be handled safely."
 
     async def run(self) -> CheckResult:
         baseline_ms = await establish_connection_baseline(self.session)
@@ -601,6 +604,9 @@ class InjectionIdTag(_BaseFieldCheck):
     name = "Injection in idTag field"
     severity = Severity.HIGH
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends Authorize and StartTransaction with injection payloads in the idTag field."
+    fail = "Anomalous responses suggest the idTag reaches an injectable context."
+    pass_ = "No anomalous behaviour detected for injection payloads in idTag."
     _applicable_methods = ["sql", "nosql", "log", "template"]
     _field_name = "idTag"
     _remediation = (
@@ -628,6 +634,9 @@ class InjectionVendorId(_BaseFieldCheck):
     name = "Injection in DataTransfer vendorId field"
     severity = Severity.HIGH
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends DataTransfer messages with injection payloads in the vendorId field."
+    fail = "Anomalous responses suggest the vendorId field is not safely handled."
+    pass_ = "No anomalous behaviour detected for injection payloads in vendorId."
     _applicable_methods = ["sql", "nosql", "log", "template"]
     _field_name = "vendorId"
     _remediation = (
@@ -653,6 +662,9 @@ class InjectionMessageId(_BaseFieldCheck):
     name = "Injection in DataTransfer messageId field"
     severity = Severity.MEDIUM
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends DataTransfer messages with injection payloads in the messageId field."
+    fail = "Anomalous responses suggest the messageId field reaches an injectable context."
+    pass_ = "No anomalous behaviour detected for injection payloads in messageId."
     _applicable_methods = ["sql", "log", "template"]
     _field_name = "messageId"
     _remediation = (
@@ -677,6 +689,9 @@ class InjectionReason(_BaseFieldCheck):
     name = "Injection in StopTransaction reason field"
     severity = Severity.MEDIUM
     applies_to = ["1.6"]
+    what = "Sends StopTransaction messages with injection payloads in the reason field."
+    fail = "Anomalous responses suggest the reason field is not safely handled."
+    pass_ = "No anomalous behaviour detected for injection payloads in the reason field."
     _applicable_methods = ["sql", "log"]
     _field_name = "reason"
     _remediation = (
@@ -708,6 +723,9 @@ class InjectionMeterValues(_BaseFieldCheck):
     name = "Injection in MeterValues measurand/location fields"
     severity = Severity.MEDIUM
     applies_to = ["1.6"]
+    what = "Sends MeterValues with injection payloads in the measurand and location fields."
+    fail = "Anomalous responses suggest meter value fields reach an injectable context."
+    pass_ = "No anomalous behaviour detected for injection payloads in MeterValues fields."
     _applicable_methods = ["sql", "log"]
     _field_name = "measurand/location"
     _remediation = (
@@ -769,6 +787,9 @@ class InjectionSoap(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6"]
+    what = "Attempts to discover a SOAP endpoint and sends XML/XXE injection payloads."
+    fail = "The server responded to XML injection indicating unsafe XML parsing (XXE or SSRF risk)."
+    pass_ = "No SOAP endpoint found or XML payloads produced no anomalous behaviour."
 
     async def run(self) -> CheckResult:
         if not getattr(self.session.config, "enable_soap", False):

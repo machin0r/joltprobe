@@ -16,6 +16,9 @@ class BillingNegativeMeterValue(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends a MeterValues message reporting a negative energy reading (e.g. −999 Wh)."
+    fail = "The negative reading was accepted. An attacker could generate credit-like billing entries."
+    pass_ = "The server rejected or flagged the negative meter value."
 
     async def run(self) -> CheckResult:
         try:
@@ -85,6 +88,9 @@ class BillingInflatedMeterValue(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.SHARED
     applies_to = ["1.6", "2.0.1"]
+    what = "Sends MeterValues where readings decrease over time (non-monotonic sequence)."
+    fail = "Decreasing readings were accepted. Billing totals can be manipulated by resetting the meter counter."
+    pass_ = "The server rejected or flagged the non-monotonic meter readings."
 
     def _meter_payload(self, value: int) -> dict:
         if self.session.version == "1.6":
