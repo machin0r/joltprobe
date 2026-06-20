@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+from urllib.parse import quote
 
 import websockets
 
@@ -240,7 +241,13 @@ class MessageInjectionChargerId(BaseCheck):
         accepted: list[str] = []
 
         for charger_id in _INJECTION_CHARGER_IDS:
-            url = f"{self.session.target.rstrip('/')}/{charger_id}"
+            # URL-encode the payload so the HTTP library accepts the URL. The server receives
+            # and decodes the percent-encoded path, so the raw injection string still reaches
+            # its routing, logging, and storage layers. Without encoding, characters like
+            # `<`, `>`, `\r\n` cause the websockets library to reject the URL locally,
+            # producing a false pass before the server is ever contacted.
+            encoded_id = quote(charger_id, safe="")
+            url = f"{self.session.target.rstrip('/')}/{encoded_id}"
             try:
                 ws = await asyncio.wait_for(
                     websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
