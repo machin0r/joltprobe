@@ -350,10 +350,16 @@ class SessionConcurrentTransactions(BaseCheck):
         except Exception as e:
             return self._error(f"Could not connect: {e}")
 
+        # Use the session's configured idTag if available, falling back to a generic probe value.
+        # An unauthorized idTag causes the CSMS to reject both StartTransactions for auth reasons
+        # rather than concurrency reasons, producing a false negative (or auth-vs-concurrency
+        # ambiguity that makes the result uninterpretable).
+        id_tag = self.session.config.id_tag or "JOLTPROBE-CONCURRENT"
+
         if self.session.version == "1.6":
             start_payload: dict = {
                 "connectorId": 1,
-                "idTag": "OCPPSCAN-TEST",
+                "idTag": id_tag,
                 "meterStart": 0,
                 "timestamp": _ts(),
             }
@@ -364,17 +370,19 @@ class SessionConcurrentTransactions(BaseCheck):
                 "timestamp": _ts(),
                 "seqNo": 1,
                 "transactionInfo": {"transactionId": "scan-txn-1"},
-                "idToken": {"idToken": "OCPPSCAN-TEST", "type": "ISO14443"},
+                "idToken": {"idToken": id_tag, "type": "ISO14443"},
                 "evse": {"id": 1, "connectorId": 1},
             }
             action = "TransactionEvent"
 
         first_txn_id = None
+        first_status = None
         try:
             resp1 = await conn.send_call(action, start_payload)
             if resp1[0] == 3:
                 resp_payload = resp1[2] if len(resp1) > 2 else {}
                 first_txn_id = resp_payload.get("transactionId")
+                first_status = (resp_payload.get("idTagInfo") or resp_payload.get("idTokenInfo") or {}).get("status")
         except asyncio.TimeoutError:
             await conn.close()
             return self._inconclusive("No response to first StartTransaction (timeout)")
@@ -382,10 +390,21 @@ class SessionConcurrentTransactions(BaseCheck):
             await conn.close()
             return self._error(str(e))
 
+        # If the first transaction itself was not accepted, we cannot distinguish concurrency
+        # rejection from auth rejection on the second attempt.
+        if self.session.version == "1.6" and first_status and first_status != "Accepted":
+            await conn.close()
+            return self._inconclusive(
+                f"First StartTransaction was not accepted (idTagInfo.status: {first_status}) — "
+                "provide a valid --id-tag so rejections on the second attempt reflect concurrency "
+                "enforcement rather than authorisation failure",
+                evidence={"id_tag": id_tag, "first_status": first_status},
+            )
+
         if self.session.version == "1.6":
             start_payload2: dict = {
                 "connectorId": 1,
-                "idTag": "OCPPSCAN-TEST2",
+                "idTag": id_tag,
                 "meterStart": 0,
                 "timestamp": _ts(),
             }
@@ -395,7 +414,7 @@ class SessionConcurrentTransactions(BaseCheck):
                 "timestamp": _ts(),
                 "seqNo": 2,
                 "transactionInfo": {"transactionId": "scan-txn-2"},
-                "idToken": {"idToken": "OCPPSCAN-TEST2", "type": "ISO14443"},
+                "idToken": {"idToken": id_tag, "type": "ISO14443"},
                 "evse": {"id": 1, "connectorId": 1},
             }
 
@@ -405,9 +424,9 @@ class SessionConcurrentTransactions(BaseCheck):
             if resp2[0] == 3:
                 resp_payload2 = resp2[2] if len(resp2) > 2 else {}
                 second_txn_id = resp_payload2.get("transactionId")
-                id_tag_info = resp_payload2.get("idTagInfo", {})
+                id_tag_info = resp_payload2.get("idTagInfo") or resp_payload2.get("idTokenInfo") or {}
                 status = id_tag_info.get("status", "unknown")
-                if status == "Accepted" or second_txn_id:
+                if status == "Accepted" or (second_txn_id and second_txn_id != 0):
                     return self._fail(
                         "CSMS accepted a second StartTransaction on connector 1 while a transaction was already active",
                         evidence={

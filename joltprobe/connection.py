@@ -26,6 +26,7 @@ class ScanConfig:
     credential_list: Optional[str]
     idtag_attempts: int = 20
     enable_soap: bool = False
+    id_tag: Optional[str] = None
 
 
 class OCPPConnection:

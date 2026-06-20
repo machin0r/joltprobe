@@ -69,6 +69,7 @@ def cli() -> None:
 @click.option("--credential-list", type=click.Path(exists=True), default=None, help="Path to credential list YAML for auth.default-credentials")
 @click.option("--idtag-attempts", type=int, default=20, show_default=True, help="Maximum idTag probe attempts for auth.idtag-enumeration")
 @click.option("--soap", "enable_soap", is_flag=True, default=False, help="Enable SOAP/XML injection check (injection.soap)")
+@click.option("--id-tag", default=None, help="A valid idTag for checks that require an authorised transaction (e.g. session.concurrent-transactions)")
 def scan(
     target: str,
     charger_id: str,
@@ -83,6 +84,7 @@ def scan(
     credential_list: Optional[str],
     idtag_attempts: int,
     enable_soap: bool,
+    id_tag: Optional[str],
 ) -> None:
     """Run a security scan against TARGET (e.g. ws://csms.example.com:9000/ocpp)."""
     asyncio.run(
@@ -100,6 +102,7 @@ def scan(
             credential_list=credential_list,
             idtag_attempts=idtag_attempts,
             enable_soap=enable_soap,
+            id_tag=id_tag,
         )
     )
 
@@ -119,6 +122,7 @@ async def _run_scan(
     credential_list: Optional[str],
     idtag_attempts: int = 20,
     enable_soap: bool = False,
+    id_tag: Optional[str] = None,
 ) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -158,6 +162,7 @@ async def _run_scan(
         credential_list=credential_list,
         idtag_attempts=idtag_attempts,
         enable_soap=enable_soap,
+        id_tag=id_tag,
     )
     session = ScanSession(config)
 
