@@ -253,16 +253,17 @@ class TLSNoClientCert(BaseCheck):
     severity = Severity.HIGH
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
-    what = "Completes a TLS handshake without presenting a client certificate. OCPP Security Profile 3 requires mutual TLS."
+    what = "Completes a TLS handshake without presenting a client certificate. OCPP Security Profile 3 requires mutual TLS; Security Profile 2 uses TLS with Basic Auth and does not."
     fail = "The server does not require a client certificate. Any host on the network can impersonate a charger."
     pass_ = "The server requires a client certificate (mutual TLS enforced)."
 
     async def run(self) -> CheckResult:
         sp = self.session.security_profile
-        if sp is None or sp < 2:
+        if sp is None or sp < 3:
             return self._skip(
-                "Skipping: requires --security-profile 2 or 3. "
-                "This check only applies when the CSMS is declared to use Security Profile 2 or 3."
+                "Skipping: requires --security-profile 3. "
+                "Security Profile 2 uses TLS with HTTP Basic Auth — client certificates are not required. "
+                "Only Security Profile 3 mandates mutual TLS."
             )
         if not self.session.is_tls():
             return self._skip("Target uses plaintext (ws://); client certificate check not applicable")
@@ -281,7 +282,7 @@ class TLSNoClientCert(BaseCheck):
             writer.close()
             await asyncio.sleep(0)
             return self._fail(
-                f"CSMS accepted a TLS connection without a client certificate despite Security Profile {sp}",
+                "CSMS accepted a TLS connection without a client certificate despite Security Profile 3",
                 evidence={
                     "declared_security_profile": sp,
                     "client_cert_provided": False,
@@ -289,7 +290,7 @@ class TLSNoClientCert(BaseCheck):
                 },
                 remediation=(
                     "Enable mutual TLS (mTLS) on the CSMS TLS listener. "
-                    "Require and verify client certificates for Security Profile 2 and 3."
+                    "Require and verify client certificates for Security Profile 3."
                 ),
                 references=["OCPP 2.0.1 Section 10.3", "OCPP Security Whitepaper"],
             )

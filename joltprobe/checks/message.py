@@ -43,6 +43,7 @@ class MessageMalformedJson(BaseCheck):
         ]
 
         accepted_any = False
+        timed_out_any = False
         evidence_list = []
 
         for payload_str in malformed_payloads:
@@ -57,10 +58,16 @@ class MessageMalformedJson(BaseCheck):
                         accepted_any = True
                         evidence_list.append({"payload": payload_str, "response": str(data)[:100], "issue": "non-error response"})
                 except asyncio.TimeoutError:
-                    accepted_any = True
-                    evidence_list.append({"payload": payload_str, "response": "timeout (no CALLERROR returned)"})
+                    # When JSON cannot be parsed there is no message ID to echo in a CALLERROR.
+                    # Closing the connection is the correct behaviour; silence here is ambiguous.
+                    timed_out_any = True
+                    evidence_list.append({
+                        "payload": payload_str,
+                        "response": "timeout (no response — connection close is also acceptable for unparseable input)",
+                    })
             except Exception as e:
-                evidence_list.append({"payload": payload_str, "send_error": str(e)[:100]})
+                # Connection closed by the server — acceptable when no message ID is available.
+                evidence_list.append({"payload": payload_str, "response": f"connection closed: {str(e)[:80]}"})
                 break
 
         await conn.close()
@@ -75,8 +82,15 @@ class MessageMalformedJson(BaseCheck):
                 ),
                 references=["OCPP 1.6 Section 4", "OCPP 2.0.1 Section 4"],
             )
+        if timed_out_any:
+            return self._inconclusive(
+                "CSMS did not respond to some malformed JSON inputs — "
+                "connection close is the preferred response when no message ID can be parsed, "
+                "but silent discard cannot be ruled out without inspection",
+                evidence={"samples": evidence_list},
+            )
         return self._pass(
-            "CSMS returned CALLERROR for all malformed JSON inputs",
+            "CSMS closed the connection or returned CALLERROR for all malformed JSON inputs",
             evidence={"samples": evidence_list[:3]},
         )
 

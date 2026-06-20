@@ -91,62 +91,17 @@ class SessionStopForeignTransaction(BaseCheck):
     pass_ = "The server rejected the StopTransaction for a foreign transaction ID."
 
     async def run(self) -> CheckResult:
-        try:
-            conn = await self.session.get_shared_connection()
-        except Exception as e:
-            return self._error(f"Could not obtain shared connection: {e}")
-
-        fake_txn_id = 888888
-        if self.session.version == "1.6":
-            payload: dict = {
-                "transactionId": fake_txn_id,
-                "meterStop": 0,
-                "timestamp": _ts(),
-                "reason": "Local",
-            }
-            action = "StopTransaction"
-        else:
-            payload = {
-                "eventType": "Ended",
-                "timestamp": _ts(),
-                "seqNo": 1,
-                "transactionInfo": {"transactionId": str(fake_txn_id), "stoppedReason": "Local"},
-                "evse": {"id": 1},
-            }
-            action = "TransactionEvent"
-
-        try:
-            resp = await conn.send_call(action, payload)
-            msg_type = resp[0]
-            if msg_type == 3:
-                resp_payload = resp[2] if len(resp) > 2 else {}
-                id_tag_info = resp_payload.get("idTagInfo", {})
-                status = id_tag_info.get("status", "unknown")
-                return self._fail(
-                    f"CSMS accepted StopTransaction for non-existent transaction ID {fake_txn_id}",
-                    evidence={
-                        "fake_transaction_id": fake_txn_id,
-                        "response_status": status,
-                        "response": resp_payload,
-                    },
-                    remediation=(
-                        "Validate that StopTransaction references a transaction ID that is active "
-                        "and was started by the same charger. Reject or log mismatches."
-                    ),
-                    references=["OCPP 1.6 Section 5.15", "OCPP 2.0.1 Section 12"],
-                )
-            if msg_type == 4:
-                return self._pass(
-                    "CSMS returned CALLERROR for StopTransaction with unknown transaction ID",
-                    evidence={"callerror_code": resp[2] if len(resp) > 2 else ""},
-                )
-            return self._inconclusive("Unexpected response type", evidence={"response": resp})
-        except asyncio.TimeoutError:
-            return self._inconclusive(
-                "No response to StopTransaction with fake transaction ID (timeout)",
-            )
-        except Exception as e:
-            return self._error(str(e))
+        # OCPP 1.6 §5.15 states: "The Central System shall always acknowledge the StopTransaction,
+        # also when it does not have any record of the transaction." OCPP 2.0.1 carries the same
+        # obligation for TransactionEvent Ended. Returning CALLRESULT is mandated spec behaviour
+        # regardless of whether the transaction ID is known or belongs to a different charger.
+        # This check cannot distinguish a vulnerable implementation from a compliant one.
+        return self._skip(
+            "OCPP 1.6 §5.15 mandates that the CSMS always return CALLRESULT for StopTransaction "
+            "regardless of whether the transaction ID is known or was started by a different charger. "
+            "OCPP 2.0.1 imposes the same requirement for TransactionEvent Ended. CALLRESULT is the "
+            "correct response; flagging it would false-positive on every spec-compliant implementation."
+        )
 
 
 class SessionStartWithoutAuth(BaseCheck):
@@ -367,64 +322,15 @@ class SessionTransactionIdEnumeration(BaseCheck):
     pass_ = "Consistent responses regardless of transaction ID validity."
 
     async def run(self) -> CheckResult:
-        try:
-            conn = await self.session.new_connection(send_boot=True)
-        except Exception as e:
-            return self._error(f"Could not connect: {e}")
-
-        accepted_ids = []
-        max_attempts = 20
-
-        for txn_id in range(1, max_attempts + 1):
-            if self.session.version == "1.6":
-                payload: dict = {
-                    "transactionId": txn_id,
-                    "meterStop": 0,
-                    "timestamp": _ts(),
-                    "reason": "Local",
-                }
-                action = "StopTransaction"
-            else:
-                payload = {
-                    "eventType": "Ended",
-                    "timestamp": _ts(),
-                    "seqNo": txn_id,
-                    "transactionInfo": {
-                        "transactionId": str(txn_id),
-                        "stoppedReason": "Local",
-                    },
-                    "evse": {"id": 1},
-                }
-                action = "TransactionEvent"
-
-            try:
-                resp = await conn.send_call(action, payload)
-                if resp[0] == 3:
-                    accepted_ids.append(txn_id)
-            except asyncio.TimeoutError:
-                break
-            except Exception:
-                break
-
-        await conn.close()
-
-        if accepted_ids:
-            return self._fail(
-                f"CSMS returned CALLRESULT for StopTransaction with {len(accepted_ids)} sequential transaction ID(s) "
-                f"not started by this charger (IDs: {accepted_ids[:5]}{'...' if len(accepted_ids) > 5 else ''})",
-                evidence={
-                    "accepted_transaction_ids": accepted_ids,
-                    "probed_range": f"1–{max_attempts}",
-                },
-                remediation=(
-                    "Validate that StopTransaction (or TransactionEvent Ended) references a transaction ID "
-                    "that was started by the same charger. Return CALLERROR for foreign or unknown IDs."
-                ),
-                references=["OCPP 1.6 Section 5.15", "OCPP 2.0.1 Section 12"],
-            )
-        return self._pass(
-            f"CSMS did not accept StopTransaction for any of {max_attempts} probed sequential transaction IDs",
-            evidence={"probed_range": f"1–{max_attempts}"},
+        # OCPP 1.6 §5.15 mandates CALLRESULT for every StopTransaction, including unknown or foreign
+        # transaction IDs. OCPP 2.0.1 carries the same obligation for TransactionEvent Ended.
+        # Because CALLRESULT is the correct response for all transaction IDs, a compliant CSMS is
+        # indistinguishable from a vulnerable one using this probe — all IDs return CALLRESULT.
+        return self._skip(
+            "OCPP 1.6 §5.15 mandates that the CSMS always return CALLRESULT for StopTransaction "
+            "regardless of whether the transaction ID is known. OCPP 2.0.1 imposes the same requirement "
+            "for TransactionEvent Ended. Every spec-compliant CSMS returns CALLRESULT for all probed IDs, "
+            "making enumeration indistinguishable from correct behaviour."
         )
 
 

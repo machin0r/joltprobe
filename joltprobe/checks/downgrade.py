@@ -64,57 +64,17 @@ class DowngradeChangeConfig(BaseCheck):
     pass_ = "The server rejected the security-downgrading configuration change."
 
     async def run(self) -> CheckResult:
-        if self.session.version != "2.0.1":
-            return self._skip("This check applies to OCPP 2.0.1 only")
-
-        try:
-            conn = await self.session.get_shared_connection()
-        except Exception as e:
-            return self._error(f"Could not obtain shared connection: {e}")
-
-        payload = {
-            "setVariableData": [
-                {
-                    "attributeValue": "0",
-                    "component": {"name": "SecurityCtrlr"},
-                    "variable": {"name": "SecurityProfile"},
-                }
-            ]
-        }
-
-        try:
-            resp = await conn.send_call("SetVariables", payload)
-            msg_type = resp[0]
-            if msg_type == 3:
-                resp_payload = resp[2] if len(resp) > 2 else {}
-                results = resp_payload.get("setVariableResult", [])
-                if results:
-                    attr_status = results[0].get("attributeStatus", "unknown")
-                    if attr_status in ("Accepted",):
-                        return self._fail(
-                            "CSMS accepted a SetVariables request to lower the SecurityProfile to 0",
-                            evidence={"attribute_status": attr_status, "response": resp_payload},
-                            remediation=(
-                                "Reject SetVariables requests that attempt to lower the SecurityProfile. "
-                                "Require out-of-band authorisation or firmware update to change security profile."
-                            ),
-                            references=["OCPP 2.0.1 Section 10.3.3", "OCPP Security Whitepaper"],
-                        )
-                    return self._pass(
-                        f"CSMS rejected the SecurityProfile downgrade request (status: {attr_status})",
-                        evidence={"attribute_status": attr_status},
-                    )
-                return self._inconclusive("Empty setVariableResult in response", evidence={"response": resp_payload})
-            if msg_type == 4:
-                return self._pass(
-                    "CSMS returned CALLERROR for SecurityProfile downgrade attempt",
-                    evidence={"callerror_code": resp[2] if len(resp) > 2 else ""},
-                )
-            return self._inconclusive("Unexpected response", evidence={"response": resp})
-        except asyncio.TimeoutError:
-            return self._inconclusive("No response to SetVariables(SecurityProfile=0) (timeout)")
-        except Exception as e:
-            return self._error(str(e))
+        # SetVariables is a CSMS→CP message in OCPP 2.0.1. A CSMS has no handler for receiving
+        # SetVariables from a charger and will always return CALLERROR NotImplemented — the same
+        # response a compliant CSMS returns for any unrecognised inbound CALL. There is no OCPP
+        # message a charger can send to instruct the CSMS to lower its own security profile.
+        # Reconnect-based downgrade is already covered by downgrade.profile-reconnect.
+        return self._skip(
+            "SetVariables is a CSMS→CP message in OCPP 2.0.1; a CSMS does not handle it as an "
+            "inbound request from a charger. Any spec-compliant CSMS returns CALLERROR NotImplemented, "
+            "which this check would record as PASS — making it indistinguishable from a genuinely "
+            "hardened system. Reconnect-based downgrade is covered by downgrade.profile-reconnect."
+        )
 
 
 class DowngradeStaleProfile(BaseCheck):
