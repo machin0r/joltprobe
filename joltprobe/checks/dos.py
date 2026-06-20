@@ -24,6 +24,22 @@ class DosConnectionFlood(BaseCheck):
 
     _TARGET_CONNECTIONS = 50
 
+    async def _try_connect(
+        self,
+        url: str,
+        subprotocol: str,
+        connect_kwargs: dict[str, Any],
+    ) -> tuple[Any, str | None]:
+        """Return (websocket, None) on success or (None, error_string) on failure."""
+        try:
+            ws = await asyncio.wait_for(
+                websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
+                timeout=self.session.timeout,
+            )
+            return ws, None
+        except Exception as e:
+            return None, str(e)[:100]
+
     async def run(self) -> CheckResult:
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
         connect_kwargs: dict[str, Any] = {"open_timeout": self.session.timeout}
@@ -33,23 +49,19 @@ class DosConnectionFlood(BaseCheck):
             ).decode()
             connect_kwargs["additional_headers"] = {"Authorization": f"Basic {token}"}
 
-        opened: list[Any] = []
-        rejected_at: int | None = None
-        errors: list[str] = []
+        # Use the same charger ID for all connections. A per-charger limit (the realistic
+        # deployment model) is only exercised when all connections share the same ID.
+        # Unique IDs per connection would bypass a per-charger limit and only detect a
+        # global limit, which is a much weaker signal.
+        url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
 
-        for i in range(self._TARGET_CONNECTIONS):
-            charger_id = f"{self.session.charger_id}-FLOOD-{i:03d}"
-            url = f"{self.session.target.rstrip('/')}/{charger_id}"
-            try:
-                ws = await asyncio.wait_for(
-                    websockets.connect(url, subprotocols=[subprotocol], **connect_kwargs),
-                    timeout=self.session.timeout,
-                )
-                opened.append(ws)
-            except Exception as e:
-                rejected_at = i
-                errors.append(str(e)[:100])
-                break
+        results = await asyncio.gather(
+            *[self._try_connect(url, subprotocol, connect_kwargs) for _ in range(self._TARGET_CONNECTIONS)],
+            return_exceptions=False,
+        )
+
+        opened = [ws for ws, err in results if ws is not None]
+        errors = [err for ws, err in results if err is not None]
 
         for ws in opened:
             try:
@@ -57,19 +69,24 @@ class DosConnectionFlood(BaseCheck):
             except Exception:
                 pass
 
-        if rejected_at is None:
+        if not errors:
             return self._fail(
-                f"CSMS accepted all {self._TARGET_CONNECTIONS} simultaneous WebSocket connections without enforcing a limit",
-                evidence={"connections_opened": len(opened), "limit_hit": False},
+                f"CSMS accepted all {self._TARGET_CONNECTIONS} simultaneous WebSocket connections "
+                f"from the same charger ID without enforcing a per-charger connection limit",
+                evidence={"connections_opened": len(opened), "charger_id": self.session.charger_id},
                 remediation=(
-                    "Enforce a per-charger or global connection limit at the WebSocket listener level. "
+                    "Enforce a per-charger connection limit at the WebSocket listener level. "
                     "Return HTTP 503 or close excess connections after a configurable threshold."
                 ),
                 references=["OCPP Security Whitepaper", "CWE-400"],
             )
         return self._pass(
-            f"CSMS enforced a connection limit at connection {rejected_at} of {self._TARGET_CONNECTIONS}",
-            evidence={"accepted_before_limit": rejected_at, "limit_error": errors[0] if errors else ""},
+            f"CSMS enforced a connection limit ({len(opened)} accepted, {len(errors)} rejected)",
+            evidence={
+                "accepted": len(opened),
+                "rejected": len(errors),
+                "first_rejection": errors[0] if errors else "",
+            },
         )
 
 
