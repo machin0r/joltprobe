@@ -49,7 +49,11 @@ class AuthNoBasicAuth(BaseCheck):
     pass_ = "The server rejected the unauthenticated connection (HTTP 401/403)."
 
     async def run(self) -> CheckResult:
-        url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
+        # Use a distinct ID that cannot be pre-registered in the CSMS, so a
+        # successful connection unambiguously means the bypass is general, not
+        # scoped to the scan charger ID.
+        probe_id = f"PROBE-NOAUTH-{uuid.uuid4().hex[:8].upper()}"
+        url = f"{self.session.target.rstrip('/')}/{probe_id}"
         subprotocol = "ocpp1.6" if self.session.version == "1.6" else "ocpp2.0.1"
 
         try:
@@ -60,7 +64,7 @@ class AuthNoBasicAuth(BaseCheck):
             await ws.close()
             return self._fail(
                 "CSMS accepted a WebSocket upgrade with no Authorization header",
-                evidence={"url": url, "auth_header_sent": False, "http_result": "101 Switching Protocols"},
+                evidence={"url": url, "auth_header_sent": False, "http_result": "101 Switching Protocols", "probe_charger_id": probe_id},
                 remediation=(
                     "Require HTTP Basic Auth on the WebSocket upgrade endpoint. "
                     "Return HTTP 401 for connections without a valid Authorization header."
