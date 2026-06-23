@@ -38,9 +38,11 @@ def is_timing_anomaly(
     response_ms: float,
     expected_delay_seconds: float,
 ) -> bool:
+    expected_ms = baseline_ms + (expected_delay_seconds * 1000)
     return (
         response_ms > baseline_ms * TIMING_THRESHOLD_MULTIPLIER
         and response_ms > MIN_TIMING_THRESHOLD_SECONDS * 1000
+        and abs(response_ms - expected_ms) < 2000
     )
 
 

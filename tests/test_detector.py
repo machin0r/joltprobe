@@ -237,8 +237,8 @@ class TestIsTimingAnomaly:
         assert is_timing_anomaly(100.0, 300.0, 5.0) is False
 
     def test_high_baseline_triggers_on_large_delay(self):
-        # baseline 2000ms, response 4100ms — exceeds both multiplier and absolute min
-        assert is_timing_anomaly(2000.0, 4100.0, 5.0) is True
+        # baseline 2000ms, 2s sleep injected, response 4100ms ≈ baseline+delay
+        assert is_timing_anomaly(2000.0, 4100.0, 2.0) is True
 
     def test_above_absolute_threshold_but_not_multiplier(self):
         # 2600ms > 2500ms absolute, but 2600 / 2000 = 1.3 < 2.0 multiplier
@@ -246,3 +246,17 @@ class TestIsTimingAnomaly:
 
     def test_just_below_absolute_threshold(self):
         assert is_timing_anomaly(100.0, 2400.0, 5.0) is False
+
+    def test_hard_timeout_not_a_timing_signal(self):
+        # A 10s connection timeout satisfies the multiplier and absolute checks
+        # but lands ~6s away from the expected 4s (baseline 1s + sleep 3s).
+        # It must NOT be reported as a timing-based finding.
+        assert is_timing_anomaly(1000.0, 10000.0, 3.0) is False
+
+    def test_response_near_expected_window_is_finding(self):
+        # 3s sleep, baseline 1s → expected ~4s; 4.2s response is within tolerance.
+        assert is_timing_anomaly(1000.0, 4200.0, 3.0) is True
+
+    def test_response_far_above_expected_not_a_finding(self):
+        # 3s sleep, baseline 1s → expected ~4s; 8s response is 4s away — timeout, not sleep.
+        assert is_timing_anomaly(1000.0, 8000.0, 3.0) is False
