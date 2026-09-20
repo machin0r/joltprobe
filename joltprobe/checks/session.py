@@ -186,6 +186,15 @@ class SessionConnectorStatusSpoof(BaseCheck):
     pass_ = "CSMS correctly rejected the second transaction despite the spoofed Available status."
 
     async def run(self) -> CheckResult:
+        if self.session.version != "1.6":
+            return self._skip(
+                "OCPP 2.0.1 only: the charger owns the transaction lifecycle and assigns "
+                "transaction IDs via TransactionEvent, so the CSMS does not gate a second "
+                "TransactionEvent on connector state the way a 1.6 CSMS gates StartTransaction. "
+                "A spoofed StatusNotification cannot be shown to cause a concurrent-session "
+                "acceptance black-box on 2.0.1. This check is meaningful for OCPP 1.6 only."
+            )
+
         try:
             conn = await self.session.new_connection(send_boot=True)
         except Exception as e:
@@ -345,6 +354,15 @@ class SessionConcurrentTransactions(BaseCheck):
     pass_ = "The server rejected the second concurrent transaction on the same connector."
 
     async def run(self) -> CheckResult:
+        if self.session.version != "1.6":
+            return self._skip(
+                "OCPP 2.0.1 only: the charger assigns transaction IDs and drives the "
+                "transaction lifecycle via TransactionEvent, so a CSMS accepting a second "
+                "TransactionEvent is expected behaviour and cannot be interpreted as a "
+                "concurrency-enforcement failure black-box. This check is meaningful for "
+                "OCPP 1.6 StartTransaction only."
+            )
+
         try:
             conn = await self.session.new_connection(send_boot=True)
         except Exception as e:
