@@ -66,13 +66,17 @@ class WebsocketNoSubprotocol(BaseCheck):
 
 class WebsocketWrongSubprotocol(BaseCheck):
     id = "websocket.wrong-subprotocol"
-    name = "Mismatched subprotocol"
+    name = "Invalid subprotocol accepted"
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.RAW
     applies_to = ["1.6", "2.0.1"]
-    what = "Connects declaring an incorrect Sec-WebSocket-Protocol value."
-    fail = "The mismatched subprotocol was accepted. Clients can misrepresent their protocol version."
-    pass_ = "The server rejected the connection with the wrong subprotocol."
+    what = (
+        "Connects declaring a Sec-WebSocket-Protocol value that no OCPP CSMS implements "
+        "(e.g. ocpp0.0). A CSMS that also supports the other OCPP version legitimately, so "
+        "the other version is not tested — only tokens that are invalid for any CSMS."
+    )
+    fail = "An unsupported subprotocol was accepted. The server is not validating the requested subprotocol."
+    pass_ = "The server rejected the connection requesting an unsupported subprotocol."
 
     async def run(self) -> CheckResult:
         url = f"{self.session.target.rstrip('/')}/{self.session.charger_id}"
@@ -83,10 +87,10 @@ class WebsocketWrongSubprotocol(BaseCheck):
             ).decode()
             connect_kwargs["additional_headers"] = {"Authorization": f"Basic {token}"}
 
-        if self.session.version == "1.6":
-            wrong_protos = ["ocpp2.0.1", "ocpp0.0"]
-        else:
-            wrong_protos = ["ocpp1.6", "ocpp0.0"]
+        # Only test subprotocol tokens that no OCPP CSMS legitimately supports. Testing the
+        # other OCPP version (e.g. ocpp1.6 against a 2.0.1 target) would false-positive on
+        # dual-stack CSMS that support both versions on the same endpoint.
+        wrong_protos = ["ocpp0.0", "ocpp9.9"]
 
         accepted_protos: list[str] = []
 
@@ -105,11 +109,11 @@ class WebsocketWrongSubprotocol(BaseCheck):
 
         if accepted_protos:
             return self._fail(
-                f"CSMS accepted WebSocket upgrade with mismatched subprotocol(s): {accepted_protos}",
+                f"CSMS accepted WebSocket upgrade with unsupported subprotocol(s): {accepted_protos}",
                 evidence={
                     "url": url,
                     "target_version": self.session.version,
-                    "accepted_wrong_protocols": accepted_protos,
+                    "accepted_unsupported_protocols": accepted_protos,
                     "tested_protocols": wrong_protos,
                 },
                 remediation=(

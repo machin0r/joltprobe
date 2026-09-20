@@ -88,7 +88,7 @@ joltprobe-web
 | `message` | Malformed JSON, oversized fields, wrong field types, unknown actions, missing required fields, deeply nested JSON, extreme timestamps, Unicode and null byte injection |
 | `injection` | SQL, NoSQL, template, log, and CRLF injection in chargeBoxId, idTag, vendorId, messageId, StopTransaction reason, MeterValues fields, and SOAP endpoint (optional) |
 | `billing` | Negative and non-monotonic meter readings |
-| `websocket` | Missing or mismatched subprotocol header |
+| `websocket` | Missing or invalid subprotocol header |
 | `dos` | Connection flood, message rate limiting, large payload handling |
 
 Run `joltprobe checks list` to see all check IDs, severities, and version support.
