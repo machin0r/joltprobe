@@ -18,9 +18,13 @@ class DosConnectionFlood(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
-    what = "Rapidly opens many simultaneous WebSocket connections to the CSMS endpoint."
+    what = "Rapidly opens many simultaneous WebSocket connections using the same charger ID."
     fail = "No connection limit was enforced. A flood attack could exhaust file descriptors or memory."
-    pass_ = "The server began refusing connections after a threshold, indicating a connection limit is enforced."
+    pass_ = (
+        "The server refused some connections. Note: because all connections share one "
+        "charger ID, a per-charger duplicate-identity policy (see auth.duplicate-identity) "
+        "produces this same result — it does not necessarily indicate a flood/connection-count limit."
+    )
 
     _TARGET_CONNECTIONS = 50
 
@@ -81,11 +85,17 @@ class DosConnectionFlood(BaseCheck):
                 references=["OCPP Security Whitepaper", "CWE-400"],
             )
         return self._pass(
-            f"CSMS enforced a connection limit ({len(opened)} accepted, {len(errors)} rejected)",
+            f"CSMS refused {len(errors)} of {self._TARGET_CONNECTIONS} same-charger-ID "
+            f"connections ({len(opened)} accepted) — this may reflect a connection/flood "
+            f"limit or a duplicate-identity policy",
             evidence={
                 "accepted": len(opened),
                 "rejected": len(errors),
                 "first_rejection": errors[0] if errors else "",
+                "note": (
+                    "All connections used the same charger ID; rejections may be caused by a "
+                    "duplicate-identity policy rather than a flood/connection-count limit."
+                ),
             },
         )
 
@@ -97,9 +107,18 @@ class DosMessageRate(BaseCheck):
     severity = Severity.MEDIUM
     connection_mode = ConnectionMode.DEDICATED
     applies_to = ["1.6", "2.0.1"]
-    what = "Sends OCPP messages at a very high rate over a single connection."
-    fail = "No rate limiting detected. Sustained high-rate messaging could exhaust CPU or queue capacity."
-    pass_ = "The server disconnected or throttled the sender when the message rate was excessive."
+    what = (
+        "Sends a burst of OCPP messages over a single connection and checks whether the "
+        "server closes the connection mid-burst. Detects rate limiting implemented as "
+        "connection termination only — response throttling or queuing is not measured, "
+        "because responses are not read back."
+    )
+    fail = (
+        "The server accepted the full burst without closing the connection. No "
+        "connection-termination rate limit was observed (response-level throttling is "
+        "not measured by this check)."
+    )
+    pass_ = "The server closed the connection during the burst, indicating a connection-termination rate limit."
 
     _BURST_COUNT = 100
     _BURST_WINDOW = 5.0
@@ -131,7 +150,9 @@ class DosMessageRate(BaseCheck):
 
         if rejected_at is None:
             return self._fail(
-                f"CSMS accepted {sent} messages in {elapsed:.1f}s ({rate:.0f} msg/s) without enforcing rate limits",
+                f"CSMS accepted a burst of {sent} messages in {elapsed:.1f}s ({rate:.0f} msg/s) "
+                f"without closing the connection (connection-termination rate limiting not "
+                f"observed; response-level throttling is not measured by this check)",
                 evidence={"messages_sent": sent, "elapsed_seconds": round(elapsed, 2), "rate_per_second": round(rate, 1)},
                 remediation=(
                     "Implement per-connection message rate limiting. "
@@ -140,7 +161,7 @@ class DosMessageRate(BaseCheck):
                 references=["OCPP Security Whitepaper", "CWE-400"],
             )
         return self._pass(
-            f"CSMS enforced rate limiting at message {rejected_at}",
+            f"CSMS closed the connection during the burst at message {rejected_at} (connection-termination rate limit)",
             evidence={"messages_before_limit": rejected_at},
         )
 
