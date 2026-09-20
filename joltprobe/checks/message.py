@@ -114,19 +114,25 @@ class MessageOversizedFields(BaseCheck):
 
         oversized = "A" * 10_000
         if self.session.version == "1.6":
+            # idTag has a 20-char maximum in 1.6; 1,000 chars is already 50x over
+            # the spec limit while staying a plausible single field value.
+            oversized_field = oversized[:20] + "X" * 980
             payload: dict = {
                 "connectorId": 1,
-                "idTag": oversized[:20] + "X" * 980,
+                "idTag": oversized_field,
                 "meterStart": 0,
                 "timestamp": "2024-01-01T00:00:00Z",
             }
             action = "StartTransaction"
         else:
+            oversized_field = oversized
             payload = {
                 "reason": "PowerUp",
                 "chargingStation": {"model": oversized, "vendorName": oversized},
             }
             action = "BootNotification"
+
+        field_length = len(oversized_field)
 
         try:
             resp = await conn.send_call(action, payload)
@@ -134,8 +140,8 @@ class MessageOversizedFields(BaseCheck):
             await conn.close()
             if msg_type == 3:
                 return self._fail(
-                    f"CSMS accepted a message with a string field of length {len(oversized)} characters",
-                    evidence={"field_length": len(oversized), "action": action},
+                    f"CSMS accepted a message with a string field of length {field_length} characters",
+                    evidence={"field_length": field_length, "action": action},
                     remediation=(
                         "Enforce OCPP spec-defined field length limits. "
                         "Return FormationViolation CALLERROR for fields exceeding maximum length."
