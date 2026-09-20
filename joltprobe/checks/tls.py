@@ -35,7 +35,7 @@ class TLSNoTLS(BaseCheck):
         path = f"{parsed.path.rstrip('/')}/{self.session.charger_id}"
 
         try:
-            _reader, writer = await asyncio.wait_for(
+            reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(host, port),
                 timeout=self.session.timeout,
             )
