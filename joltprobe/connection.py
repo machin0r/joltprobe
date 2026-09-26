@@ -64,8 +64,19 @@ class OCPPConnection:
     def _record(self, direction: str, frame: Any) -> None:
         if len(self.transcript) >= _MAX_TRANSCRIPT_ENTRIES:
             return
-        if isinstance(frame, str) and len(frame) > _MAX_FRAME_CHARS:
-            frame = frame[:_MAX_FRAME_CHARS] + "…[truncated]"
+        # Bound the stored size. Structured frames (the common send_call/receive
+        # path) are measured by their serialized length and, if oversized, kept as
+        # a truncated string so a runaway payload cannot bloat the transcript.
+        if isinstance(frame, str):
+            if len(frame) > _MAX_FRAME_CHARS:
+                frame = frame[:_MAX_FRAME_CHARS] + "…[truncated]"
+        else:
+            try:
+                serialized = json.dumps(frame, ensure_ascii=False)
+            except (TypeError, ValueError):
+                serialized = str(frame)
+            if len(serialized) > _MAX_FRAME_CHARS:
+                frame = serialized[:_MAX_FRAME_CHARS] + "…[truncated]"
         self.transcript.append(
             {
                 "t": time.time(),
