@@ -4,10 +4,16 @@ import asyncio
 import base64
 import json
 import ssl
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import urlparse
+
+# Bounds so a runaway check (e.g. a message flood) cannot make a transcript
+# unbounded in memory or unreadable in a report.
+_MAX_TRANSCRIPT_ENTRIES = 200
+_MAX_FRAME_CHARS = 4000
 
 import websockets
 import websockets.exceptions
@@ -51,6 +57,23 @@ class OCPPConnection:
         self._pending: dict[str, asyncio.Future] = {}
         self._receive_task: Optional[asyncio.Task] = None
         self._closed = False
+        # Ordered record of every frame sent/received on this connection, used to
+        # attach a reproducible OCPP exchange to each finding.
+        self.transcript: list[dict[str, Any]] = []
+
+    def _record(self, direction: str, frame: Any) -> None:
+        if len(self.transcript) >= _MAX_TRANSCRIPT_ENTRIES:
+            return
+        if isinstance(frame, str) and len(frame) > _MAX_FRAME_CHARS:
+            frame = frame[:_MAX_FRAME_CHARS] + "…[truncated]"
+        self.transcript.append(
+            {
+                "t": time.time(),
+                "dir": direction,
+                "cid": self.charger_id,
+                "frame": frame,
+            }
+        )
 
     @property
     def url(self) -> str:
@@ -87,13 +110,14 @@ class OCPPConnection:
             async for raw in self._ws:
                 try:
                     data = json.loads(raw)
+                    self._record("recv", data)
                     if isinstance(data, list) and data[0] in (3, 4):
                         msg_id = data[1]
                         fut = self._pending.pop(msg_id, None)
                         if fut and not fut.done():
                             fut.set_result(data)
                 except (json.JSONDecodeError, IndexError, KeyError):
-                    pass
+                    self._record("recv", raw if isinstance(raw, str) else str(raw))
         except Exception:
             for fut in self._pending.values():
                 if not fut.done():
@@ -104,10 +128,12 @@ class OCPPConnection:
         if not self._ws or self._closed:
             raise RuntimeError("Not connected")
         msg_id = str(uuid.uuid4())[:8]
-        message = json.dumps([2, msg_id, action, payload])
+        call = [2, msg_id, action, payload]
+        message = json.dumps(call)
         loop = asyncio.get_running_loop()
         fut: asyncio.Future[list[Any]] = loop.create_future()
         self._pending[msg_id] = fut
+        self._record("send", call)
         await self._ws.send(message)
         try:
             return await asyncio.wait_for(asyncio.shield(fut), timeout=self.timeout)
@@ -118,12 +144,18 @@ class OCPPConnection:
     async def send_raw(self, data: str) -> None:
         if not self._ws or self._closed:
             raise RuntimeError("Not connected")
+        self._record("send", data)
         await self._ws.send(data)
 
     async def recv_raw(self) -> str:
         if not self._ws or self._closed:
             raise RuntimeError("Not connected")
-        return await asyncio.wait_for(self._ws.recv(), timeout=self.timeout)
+        raw = await asyncio.wait_for(self._ws.recv(), timeout=self.timeout)
+        try:
+            self._record("recv", json.loads(raw))
+        except (json.JSONDecodeError, TypeError):
+            self._record("recv", raw if isinstance(raw, str) else str(raw))
+        return raw
 
     async def close(self) -> None:
         self._closed = True
@@ -254,6 +286,25 @@ class ScanSession:
                 pass
         self._owned.append(conn)
         return conn
+
+    def _live_connections(self) -> list[OCPPConnection]:
+        conns = list(self._owned)
+        if self._shared is not None:
+            conns.append(self._shared)
+        return conns
+
+    def reset_transcripts(self) -> None:
+        """Clear recorded frames on all connections so the next check's transcript is isolated."""
+        for conn in self._live_connections():
+            conn.transcript.clear()
+
+    def collect_transcript(self) -> list[dict[str, Any]]:
+        """Merge all connection transcripts into a single time-ordered exchange."""
+        entries: list[dict[str, Any]] = []
+        for conn in self._live_connections():
+            entries.extend(conn.transcript)
+        entries.sort(key=lambda e: e.get("t", 0.0))
+        return entries[:_MAX_TRANSCRIPT_ENTRIES]
 
     async def close_shared(self) -> None:
         """Close the shared connection, freeing the charger ID slot for dedicated checks."""
