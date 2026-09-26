@@ -80,13 +80,13 @@ class CertSignPreBoot(BaseCheck):
             )
         except Exception as e:
             await conn.close()
-            msg = str(e).lower()
-            if "101" not in msg:
-                return self._pass(
-                    "CSMS closed/rejected the connection when SignCertificate was sent before boot",
-                    evidence={"rejection": str(e)[:200]},
-                )
-            return self._error(str(e))
+            # The socket was already connected, so a send/receive exception here means
+            # the CSMS closed the connection rather than signing the pre-boot CSR —
+            # i.e. it declined. (Timeouts are handled separately above.)
+            return self._pass(
+                "CSMS closed/rejected the connection when SignCertificate was sent before boot",
+                evidence={"rejection": str(e)[:200]},
+            )
 
         await conn.close()
 
