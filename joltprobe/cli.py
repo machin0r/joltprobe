@@ -413,15 +413,15 @@ async def _run_single_check(
 
     check = check_class(session)
     session.reset_transcripts()
-    result = check._error("Check did not run")
     try:
         result = await check.run()
     except Exception as exc:
         result = check._error(f"Unhandled exception: {exc}")
-    finally:
-        if not result.transcript:
-            result.transcript = session.collect_transcript()
-        await session.close()
+
+    # Collect the transcript before closing, since close() clears the connections.
+    if not result.transcript:
+        result.transcript = session.collect_transcript()
+    await session.close()
 
     console.print()
     console.print(Panel.fit(
