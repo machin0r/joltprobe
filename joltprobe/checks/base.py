@@ -41,6 +41,8 @@ class CheckResult:
     evidence: dict[str, Any] = field(default_factory=dict)
     remediation: str = ""
     references: list[str] = field(default_factory=list)
+    cwe: list[str] = field(default_factory=list)
+    transcript: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -52,6 +54,8 @@ class CheckResult:
             "evidence": self.evidence,
             "remediation": self.remediation,
             "references": self.references,
+            "cwe": self.cwe,
+            "transcript": self.transcript,
         }
 
 
@@ -64,6 +68,9 @@ class BaseCheck:
     what: str = ""
     fail: str = ""
     pass_: str = ""
+    # CWE identifiers this check maps to. Populated centrally from
+    # joltprobe.checks.mappings so every check has an auditable classification.
+    cwe: list[str] = []
 
     def __init__(self, session: "ScanSession") -> None:
         self.session = session
@@ -78,6 +85,7 @@ class BaseCheck:
             severity=self.severity,
             status=Status.SKIP,
             description=reason,
+            cwe=self.cwe,
         )
 
     def _error(self, reason: str) -> CheckResult:
@@ -88,6 +96,7 @@ class BaseCheck:
             status=Status.ERROR,
             description=f"Check could not complete: {reason}",
             evidence={"error": reason},
+            cwe=self.cwe,
         )
 
     def _pass(self, description: str, evidence: Optional[dict] = None) -> CheckResult:
@@ -98,6 +107,7 @@ class BaseCheck:
             status=Status.PASS,
             description=description,
             evidence=evidence or {},
+            cwe=self.cwe,
         )
 
     def _fail(
@@ -116,6 +126,7 @@ class BaseCheck:
             evidence=evidence or {},
             remediation=remediation,
             references=references or [],
+            cwe=self.cwe,
         )
 
     def _inconclusive(self, description: str, evidence: Optional[dict] = None) -> CheckResult:
@@ -126,4 +137,5 @@ class BaseCheck:
             status=Status.INCONCLUSIVE,
             description=description,
             evidence=evidence or {},
+            cwe=self.cwe,
         )

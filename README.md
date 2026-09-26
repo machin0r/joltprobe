@@ -85,13 +85,23 @@ joltprobe-web
 | `auth` | Missing Basic Auth, default credentials, arbitrary charger ID acceptance, duplicate identity, pre-boot command acceptance, idTag enumeration |
 | `session` | MeterValues without a transaction, foreign transaction stop, unauthorised StartTransaction, local auth list manipulation, connector status spoofing, transaction ID enumeration, concurrent transaction handling |
 | `downgrade` | Security profile downgrade on reconnect, ChangeConfiguration to lower profile, stale lower-profile credentials |
+| `cert` | (OCPP 2.0.1) SignCertificate accepted before BootNotification, SignCertificate accepting a malformed CSR |
+| `firmware` | CSMS acting on a charger-supplied UpdateFirmware download URL or GetDiagnostics/GetLog upload URL (SSRF / exfiltration) |
 | `message` | Malformed JSON, oversized fields, wrong field types, unknown actions, missing required fields, deeply nested JSON, extreme timestamps, Unicode and null byte injection |
 | `injection` | SQL, NoSQL, template, log, and CRLF injection in chargeBoxId, idTag, vendorId, messageId, StopTransaction reason, MeterValues fields, and SOAP endpoint (optional) |
 | `billing` | Negative and non-monotonic meter readings |
 | `websocket` | Missing or invalid subprotocol header |
 | `dos` | Connection flood, message rate limiting, large payload handling |
 
-Run `joltprobe checks list` to see all check IDs, severities, and version support.
+Run `joltprobe checks list` to see all check IDs, severities, CWE classifications, and version support.
+
+### CWE classification
+
+Every check is mapped to one or more [CWE](https://cwe.mitre.org/) identifiers. The mapping lives in one place (`joltprobe/checks/mappings.py`) so it can be reviewed as a single table, and the CWE ids appear in `checks list`, in the per-check output, and in every report format. This makes findings straightforward to hand to an auditor or manufacturer.
+
+### Per-finding transcripts
+
+Each finding carries the OCPP message exchange that produced it — the frames JoltProbe sent and the CSMS's responses, in order. Transcripts are included in JSON, Markdown, and HTML reports (and the web UI) so a vendor can reproduce a finding rather than take it on trust.
 
 ---
 

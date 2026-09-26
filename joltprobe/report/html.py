@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import html as _htmllib
 import json
 from typing import Any
 
 from joltprobe.checks.base import CheckResult, Status
+
+
+def _esc(text: str) -> str:
+    return _htmllib.escape(text, quote=False)
 
 
 _SEV_COLOR = {
@@ -84,21 +89,36 @@ def render_html(meta: dict[str, Any], results: list[CheckResult]) -> str:
         border_color = _SEV_COLOR.get(r.severity.value, "#ccc")
         evidence_html = ""
         if r.evidence:
-            evidence_html = f'<div class="field-label">Evidence</div><pre>{json.dumps(r.evidence, indent=2)}</pre>'
+            evidence_html = f'<div class="field-label">Evidence</div><pre>{_esc(json.dumps(r.evidence, indent=2))}</pre>'
         remediation_html = ""
         if r.remediation:
-            remediation_html = f'<div class="field-label">Remediation</div><div class="field-value">{r.remediation}</div>'
+            remediation_html = f'<div class="field-label">Remediation</div><div class="field-value">{_esc(r.remediation)}</div>'
         refs_html = ""
         if r.references:
-            ref_items = "".join(f"<li>{ref}</li>" for ref in r.references)
+            ref_items = "".join(f"<li>{_esc(ref)}</li>" for ref in r.references)
             refs_html = f'<div class="field-label">References</div><ul style="padding-left:1.2rem;font-size:.875rem">{ref_items}</ul>'
+        cwe_html = ""
+        if r.cwe:
+            cwe_html = f'<div class="field-label">CWE</div><div class="field-value">{", ".join(r.cwe)}</div>'
+        transcript_html = ""
+        if r.transcript:
+            lines = []
+            for e in r.transcript:
+                arrow = "&rarr;" if e.get("dir") == "send" else "&larr;"
+                frame = e.get("frame")
+                text = json.dumps(frame, ensure_ascii=False) if not isinstance(frame, str) else frame
+                lines.append(f"{arrow} {_esc(text)}")
+            transcript_html = (
+                '<div class="field-label">OCPP transcript</div>'
+                f'<pre>{chr(10).join(lines)}</pre>'
+            )
 
         finding_blocks += (
             f'<div class="finding" style="border-left-color:{border_color}">'
-            f"<h3>{_badge(r.severity.value, border_color)} &nbsp; {r.name}</h3>"
-            f'<div style="color:#666;font-size:.8rem;margin:.25rem 0 .75rem"><code>{r.id}</code></div>'
-            f'<div class="field-label">Description</div><div class="field-value">{r.description}</div>'
-            f"{evidence_html}{remediation_html}{refs_html}</div>"
+            f"<h3>{_badge(r.severity.value, border_color)} &nbsp; {_esc(r.name)}</h3>"
+            f'<div style="color:#666;font-size:.8rem;margin:.25rem 0 .75rem"><code>{_esc(r.id)}</code></div>'
+            f'<div class="field-label">Description</div><div class="field-value">{_esc(r.description)}</div>'
+            f"{evidence_html}{cwe_html}{remediation_html}{refs_html}{transcript_html}</div>"
         )
 
     overall_label = overall if overall != "PASS" else "PASS — No Findings"

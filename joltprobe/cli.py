@@ -187,11 +187,14 @@ async def _run_scan(
                 shared_closed = True
 
             check = check_class(session)
+            session.reset_transcripts()
             try:
                 result = await check.run()
             except Exception as exc:
                 result = check._error(f"Unhandled exception: {exc}")
 
+            if not result.transcript:
+                result.transcript = session.collect_transcript()
             results.append(result)
             _print_result_line(result)
     finally:
@@ -312,7 +315,7 @@ def checks_group() -> None:
 
 
 @checks_group.command(name="list")
-@click.option("--category", default=None, help="Filter by category (tls, auth, session, downgrade, message, billing, websocket, dos)")
+@click.option("--category", default=None, help="Filter by category (tls, auth, session, downgrade, cert, firmware, message, billing, websocket, dos)")
 def list_checks(category: Optional[str]) -> None:
     """List all available checks."""
     table = Table(title="Available Checks", box=box.ROUNDED, border_style="blue")
@@ -320,6 +323,7 @@ def list_checks(category: Optional[str]) -> None:
     table.add_column("Severity")
     table.add_column("Category")
     table.add_column("Applies To")
+    table.add_column("CWE")
     table.add_column("Name")
 
     for check_class in ALL_CHECKS:
@@ -332,6 +336,7 @@ def list_checks(category: Optional[str]) -> None:
             f"[{sev_style}]{check_class.severity.value}[/{sev_style}]",
             cat,
             ", ".join(check_class.applies_to),
+            ", ".join(check_class.cwe) or "—",
             check_class.name,
         )
     console.print(table)
@@ -407,12 +412,16 @@ async def _run_single_check(
             console.print(f"[yellow]Shared connection setup: {err}[/yellow]")
 
     check = check_class(session)
+    session.reset_transcripts()
     try:
         result = await check.run()
     except Exception as exc:
         result = check._error(f"Unhandled exception: {exc}")
-    finally:
-        await session.close()
+
+    # Collect the transcript before closing, since close() clears the connections.
+    if not result.transcript:
+        result.transcript = session.collect_transcript()
+    await session.close()
 
     console.print()
     console.print(Panel.fit(
@@ -422,7 +431,9 @@ async def _run_single_check(
         f"[bold]Description:[/bold] {result.description}\n\n"
         + (f"[bold]Evidence:[/bold]\n{json.dumps(result.evidence, indent=2)}\n\n" if result.evidence else "")
         + (f"[bold]Remediation:[/bold] {result.remediation}\n\n" if result.remediation else "")
-        + (f"[bold]References:[/bold] {', '.join(result.references)}" if result.references else ""),
+        + (f"[bold]CWE:[/bold] {', '.join(result.cwe)}\n\n" if result.cwe else "")
+        + (f"[bold]References:[/bold] {', '.join(result.references)}\n\n" if result.references else "")
+        + (f"[bold]Transcript:[/bold] {len(result.transcript)} frame(s) recorded" if result.transcript else ""),
         title=f"[bold blue]Check Result[/bold blue]",
         border_style=_STATUS_STYLE[result.status].replace("bold ", ""),
     ))

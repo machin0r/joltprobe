@@ -84,12 +84,38 @@ def render_markdown(meta: dict[str, Any], results: list[CheckResult]) -> str:
             if r.remediation:
                 lines.append(f"**Remediation:** {r.remediation}")
                 lines.append("")
+            if r.cwe:
+                lines.append(f"**CWE:** {', '.join(r.cwe)}")
+                lines.append("")
             if r.references:
                 lines.append("**References:**")
                 for ref in r.references:
                     lines.append(f"- {ref}")
                 lines.append("")
+            if r.transcript:
+                lines.append("**OCPP transcript:**")
+                lines.append("```")
+                lines.extend(_format_transcript(r.transcript))
+                lines.append("```")
+                lines.append("")
             lines.append("---")
             lines.append("")
 
     return "\n".join(lines)
+
+
+def _format_transcript(entries: list[dict]) -> list[str]:
+    """Render recorded frames as an arrowed, human-readable exchange.
+
+    Each frame is collapsed onto a single line prefixed with an arrow, so a frame
+    whose content contains a newline followed by a code-fence sequence cannot form
+    a bare ``` line that closes the surrounding fence early.
+    """
+    out: list[str] = []
+    for e in entries:
+        arrow = "→" if e.get("dir") == "send" else "←"
+        frame = e.get("frame")
+        text = json.dumps(frame, ensure_ascii=False) if not isinstance(frame, str) else frame
+        text = text.replace("\r", " ").replace("\n", " ")
+        out.append(f"{arrow} {text}")
+    return out
