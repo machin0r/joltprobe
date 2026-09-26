@@ -575,8 +575,20 @@ function populateDetails(data) {
       html += `<div class="detail-col-head" style="color:#0d6efd">Remediation</div>`;
       html += `<p class="mb-2" style="font-size:.8rem">${esc(r.remediation)}</p>`;
     }
+    if (r.cwe && r.cwe.length) {
+      html += `<div class="small text-muted mb-1">CWE: ${esc(r.cwe.join(', '))}</div>`;
+    }
     if (r.references && r.references.length) {
       html += `<div class="small text-muted">${esc(r.references.join(' · '))}</div>`;
+    }
+    if (r.transcript && r.transcript.length) {
+      const lines = r.transcript.map(e => {
+        const arrow = e.dir === 'send' ? '→' : '←';
+        const frame = (typeof e.frame === 'string') ? e.frame : JSON.stringify(e.frame);
+        return `${arrow} ${frame}`;
+      }).join('\n');
+      html += `<div class="detail-col-head text-muted">OCPP transcript</div>`;
+      html += `<pre class="evidence-pre mb-2">${esc(lines)}</pre>`;
     }
     if (html) { rd.innerHTML = html; rd.style.display = ''; }
   }
