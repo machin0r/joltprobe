@@ -105,11 +105,17 @@ def render_markdown(meta: dict[str, Any], results: list[CheckResult]) -> str:
 
 
 def _format_transcript(entries: list[dict]) -> list[str]:
-    """Render recorded frames as an arrowed, human-readable exchange."""
+    """Render recorded frames as an arrowed, human-readable exchange.
+
+    Each frame is collapsed onto a single line prefixed with an arrow, so a frame
+    whose content contains a newline followed by a code-fence sequence cannot form
+    a bare ``` line that closes the surrounding fence early.
+    """
     out: list[str] = []
     for e in entries:
         arrow = "→" if e.get("dir") == "send" else "←"
         frame = e.get("frame")
         text = json.dumps(frame, ensure_ascii=False) if not isinstance(frame, str) else frame
+        text = text.replace("\r", " ").replace("\n", " ")
         out.append(f"{arrow} {text}")
     return out
