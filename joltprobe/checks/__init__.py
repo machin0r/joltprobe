@@ -35,6 +35,8 @@ from joltprobe.checks.message import (
 from joltprobe.checks.billing import BillingNegativeMeterValue, BillingInflatedMeterValue
 from joltprobe.checks.websocket import WebsocketNoSubprotocol, WebsocketWrongSubprotocol
 from joltprobe.checks.dos import DosConnectionFlood, DosMessageRate, DosLargePayload
+from joltprobe.checks.cert import CertSignPreBoot, CertSignMalformedCsr
+from joltprobe.checks.firmware import FirmwareUpdateUrl, DiagnosticsUploadUrl
 from joltprobe.injection.checks import (
     InjectionChargeBoxId,
     InjectionIdTag,
@@ -93,6 +95,10 @@ ALL_CHECKS = [
     DosConnectionFlood,
     DosMessageRate,
     DosLargePayload,
+    CertSignPreBoot,
+    CertSignMalformedCsr,
+    FirmwareUpdateUrl,
+    DiagnosticsUploadUrl,
     *_ALL_INJECTION,
 ]
 
@@ -101,6 +107,8 @@ CATEGORIES: dict[str, list] = {
     "auth": [AuthNoBasicAuth, AuthDefaultCredentials, AuthArbitraryChargerId, AuthDuplicateIdentity, AuthNoBootRequired, AuthIdTagEnumeration],
     "session": [SessionMeterWithoutTransaction, SessionStopForeignTransaction, SessionStartWithoutAuth, SessionLocalAuthListAbuse, SessionConnectorStatusSpoof, SessionTransactionIdEnumeration, SessionConcurrentTransactions],
     "downgrade": [DowngradeProfileReconnect, DowngradeChangeConfig, DowngradeStaleProfile],
+    "cert": [CertSignPreBoot, CertSignMalformedCsr],
+    "firmware": [FirmwareUpdateUrl, DiagnosticsUploadUrl],
     "message": [MessageMalformedJson, MessageOversizedFields, MessageWrongTypes, MessageInjectionChargerId, MessageUnknownAction, MessageMissingRequiredFields, MessageDeeplyNestedJson, MessageTimestampSkew, MessageUnicodeNullBytes],
     "billing": [BillingNegativeMeterValue, BillingInflatedMeterValue],
     "websocket": [WebsocketNoSubprotocol, WebsocketWrongSubprotocol],
@@ -117,3 +125,9 @@ CATEGORIES: dict[str, list] = {
 }
 
 CHECK_BY_ID: dict[str, type] = {cls.id: cls for cls in ALL_CHECKS}
+
+# Attach the CWE classification to every check class so it flows into results,
+# the CLI listing, and reports.
+from joltprobe.checks.mappings import apply_cwe  # noqa: E402
+
+apply_cwe(ALL_CHECKS)
