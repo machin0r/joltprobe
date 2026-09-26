@@ -64,6 +64,19 @@ def test_sign_preboot_inconclusive_on_timeout():
     assert _run(CertSignPreBoot, s).status == Status.INCONCLUSIVE
 
 
+def test_sign_preboot_pass_when_csms_closes_connection():
+    # A send-time exception means the CSMS closed rather than signing = declined.
+    s = FakeSession(raise_exc=RuntimeError("connection closed"))
+    assert _run(CertSignPreBoot, s).status == Status.PASS
+
+
+def test_sign_preboot_pass_on_close_code_containing_101():
+    # Regression: a WebSocket close code like 1011 must not be misread as a failed
+    # "101 Switching Protocols" handshake and reported as ERROR.
+    s = FakeSession(raise_exc=RuntimeError("sent 1011 (internal error)"))
+    assert _run(CertSignPreBoot, s).status == Status.PASS
+
+
 def test_sign_preboot_skips_on_16():
     s = FakeSession(version="1.6", response=[3, "id", {"status": "Accepted"}])
     assert _run(CertSignPreBoot, s).status == Status.SKIP

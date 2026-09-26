@@ -36,6 +36,24 @@ def test_record_caps_entry_count():
     assert len(c.transcript) == _MAX_TRANSCRIPT_ENTRIES
 
 
+def test_record_truncates_oversized_structured_frame():
+    # A parsed CALL (list) with a huge field is the common path and must still be
+    # bounded, not just raw-string frames.
+    c = _conn()
+    big = "A" * (_MAX_FRAME_CHARS + 5000)
+    c._record("send", [2, "id", "DataTransfer", {"data": big}])
+    stored = c.transcript[0]["frame"]
+    assert isinstance(stored, str)
+    assert stored.endswith("…[truncated]")
+    assert len(stored) <= _MAX_FRAME_CHARS + len("…[truncated]")
+
+
+def test_record_keeps_small_structured_frame_intact():
+    c = _conn()
+    c._record("recv", [3, "id", {"status": "Accepted"}])
+    assert c.transcript[0]["frame"] == [3, "id", {"status": "Accepted"}]
+
+
 def _session() -> ScanSession:
     cfg = ScanConfig(
         target="ws://x",
